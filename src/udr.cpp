@@ -189,8 +189,14 @@ int main(int argc, char* argv[]){
   if(!use_rsync)
     usage();
   
-  while((ch = getopt(rsync_arg_idx, argv, "tlnvs:h:p:c:k:")) != -1)
+  while((ch = getopt(rsync_arg_idx, argv, "tlnva:b:s:h:p:c:k:")) != -1)
     switch (ch) {
+      case 'a':
+      default_start_port = atoi(optarg);
+      break;
+      case 'b':
+      default_end_port = atoi(optarg);
+      break;
       case 't':
       tflag = 1;
       break;
@@ -346,16 +352,17 @@ int main(int argc, char* argv[]){
       host[host_len-username_len] = '\0';
 
 
-      char udr_args[20];
+      char udr_args[100];
       if(!encryption)
         strcpy(udr_args, "-n ");
       else
         udr_args[0] = '\0';
 
       if(verbose_mode)
-        strcat(udr_args, "-v ");
+        strcat(udr_args, "-v");
 
-      strcat(udr_args, "-t rsync");
+      char udr_ports[50];
+      sprintf(udr_args, "%s -a %d -b %d %s", udr_args, default_start_port, default_end_port, "-t rsync");
 
       if(verbose_mode){
         fprintf(stderr, "%s username: '%s' host: '%s'\n", which_process, username, host);
