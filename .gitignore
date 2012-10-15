@@ -14,7 +14,12 @@
 
 # The UDR binary and other files
 src/udr
-src/.udr_key 
+src/.udr_key
+udt/app/appclient
+udt/app/appserver
+udt/app/recvfile
+udt/app/sendfile
+udt/app/test
 
 # Emacs files
 *~

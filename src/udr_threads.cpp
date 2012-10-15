@@ -21,13 +21,17 @@ and limitations under the License.
 #include <signal.h>
 #include <netdb.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <udt.h>
 #include "udr.h"
 #include "udr_threads.h"
 
 //the timeout can be used as a way to get around the issues happening with the final handle_to_udt thread hanging because can't get the signaling to work properly
-// int timeout = -1;
-
+//nope the timeout causes premature timeouts...
+//int timeout = 10000;
+int ppid_poll = 2;
+bool thread_log = false;
 string local_logfile_dir = "/home/aheath/projects/udr/log/thread_";
 
 void print_bytes(FILE* file, const void *object, size_t size) {
@@ -103,6 +107,7 @@ void *handle_to_udt(void *threadarg) {
         fprintf(logfile, "Error: %s\n", strerror(errno));
         fclose(logfile);
       }
+      my_args->is_complete = true;
       return NULL;
     }
     if(bytes_read == 0) {
@@ -110,6 +115,7 @@ void *handle_to_udt(void *threadarg) {
         fprintf(logfile, "%d Got %d bytes_read, exiting\n", my_args->id, bytes_read);
         fclose(logfile);
       }
+      my_args->is_complete = true;
       return NULL;
     }
 
@@ -130,6 +136,7 @@ void *handle_to_udt(void *threadarg) {
           fprintf(logfile, "%d send error: %s\n", my_args->id, UDT::getlasterror().getErrorMessage());
           fclose(logfile);
         }
+        my_args->is_complete = true;
         return NULL;
       }
 
@@ -140,6 +147,7 @@ void *handle_to_udt(void *threadarg) {
       }
     }
   }
+  my_args->is_complete = true;
 }
 
 void *udt_to_handle(void *threadarg) {
@@ -166,6 +174,7 @@ void *udt_to_handle(void *threadarg) {
         fprintf(logfile, "%d recv error: %s\n", my_args->id, UDT::getlasterror().getErrorMessage());
         fclose(logfile);
       }
+      my_args->is_complete = true;
       return NULL;
     }
 
@@ -188,9 +197,11 @@ void *udt_to_handle(void *threadarg) {
         fprintf(logfile, "Error: %s\n", strerror(errno));
         fclose(logfile);
       }
+      my_args->is_complete = true;
       return NULL;
     }
   }
+  my_args->is_complete = true;
 } 
 
 
@@ -256,21 +267,23 @@ int run_sender(char* receiver, char* receiver_port, bool encryption, unsigned ch
   }
 
   //set the recv timeout?
-  // UDT::setsockopt(client, 0, UDT_RCVTIMEO, &timeout, sizeof(int)); 
+  //UDT::setsockopt(client, 0, UDT_RCVTIMEO, &timeout, sizeof(int)); 
 
   struct thread_data sender_to_udt;
   sender_to_udt.udt_socket = &client;
   sender_to_udt.fd = STDIN_FILENO; //stdin of this process, from stdout of rsync
   sender_to_udt.id = 0;
-  sender_to_udt.log = false;
+  sender_to_udt.log = thread_log;
   sender_to_udt.logfile_dir = local_logfile_dir;
+  sender_to_udt.is_complete = false;
   
   struct thread_data udt_to_sender;
   udt_to_sender.udt_socket = &client;
   udt_to_sender.fd = STDOUT_FILENO; //stdout of this process, going to stdin of rsync, rsync defaults to set this is non-blocking
   udt_to_sender.id = 1;
-  udt_to_sender.log = false;
+  udt_to_sender.log = thread_log;
   udt_to_sender.logfile_dir = local_logfile_dir;
+  udt_to_sender.is_complete = false;
 
   if(encryption){
     crypto encrypt(BF_ENCRYPT, PASSPHRASE_SIZE, (unsigned char *) passphrase);
@@ -310,6 +323,8 @@ int run_sender(char* receiver, char* receiver_port, bool encryption, unsigned ch
 }
 
 int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mode) {
+  int orig_ppid = getppid();
+
   UDT::startup();
 
   addrinfo hints;
@@ -400,7 +415,7 @@ int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mod
   args.push_back( p );
 
   //set the receiving timeout?
-  // UDT::setsockopt(recver, 0, UDT_RCVTIMEO, &timeout, sizeof(int)); 
+  //UDT::setsockopt(recver, 0, UDT_RCVTIMEO, &timeout, sizeof(int)); 
   
   //now fork and exec the rsync server
 
@@ -413,15 +428,17 @@ int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mod
   recv_to_udt.udt_socket = &recver;
   recv_to_udt.fd = child_to_parent; //stdout of rsync server process
   recv_to_udt.id = 2;
-  recv_to_udt.log = false;
+  recv_to_udt.log = thread_log;
   recv_to_udt.logfile_dir = local_logfile_dir;
+  recv_to_udt.is_complete = false;
 
   struct thread_data udt_to_recv;
   udt_to_recv.udt_socket = &recver;
   udt_to_recv.fd = parent_to_child; //stdin of rsync server process
   udt_to_recv.id = 3;
-  udt_to_recv.log = false;
+  udt_to_recv.log = thread_log;
   udt_to_recv.logfile_dir = local_logfile_dir;
+  udt_to_recv.is_complete = false;
 
   if(encryption){
     crypto encrypt(BF_ENCRYPT, PASSPHRASE_SIZE, rand_pp);
@@ -440,8 +457,23 @@ int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mod
   pthread_t udt_to_recv_thread;
   pthread_create(&udt_to_recv_thread, NULL, udt_to_handle, (void*)&udt_to_recv);
 
-  if(verbose_mode)
+  if(verbose_mode){
     fprintf(stderr, "Receiver: waiting to join on recv_to_udt_thread\n");
+    fprintf(stderr, "Receiver: ppid %d pid %d\n", getppid(), getpid());
+  }
+
+  //going to poll if the ppid changes then we know it's exited and then we exit all of our threads and exit as well
+  //also check if the threads have exited to break, still have the joins to ensure any cleanup is also completed
+  while(true){
+    if(getppid() != orig_ppid){
+      pthread_kill(recv_to_udt_thread, SIGUSR1);
+      pthread_kill(udt_to_recv_thread, SIGUSR1);
+      break;
+    }
+    if(recv_to_udt.is_complete || udt_to_recv.is_complete)
+      break;
+    sleep(ppid_poll);
+  }
 
   int rc1 = pthread_join(recv_to_udt_thread, NULL);
   if(verbose_mode)

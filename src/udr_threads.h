@@ -30,6 +30,7 @@ struct thread_data{
   crypto * crypt;
   bool log;
   string logfile_dir;
+  bool is_complete;
 };
 
 void *handle_to_udt(void *threadarg);

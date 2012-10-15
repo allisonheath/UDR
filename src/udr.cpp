@@ -36,7 +36,7 @@ and limitations under the License.
 using namespace std;
 
 bool verbose_mode = false;
-bool encryption = true;
+bool encryption = false;
 
 const char *ssh_program = "ssh";
 const char *rsync_program = "rsync";
@@ -185,6 +185,7 @@ int main(int argc, char* argv[]){
     }
   }
 
+  //only with rsync for now
   if(!use_rsync)
     usage();
   
@@ -194,7 +195,7 @@ int main(int argc, char* argv[]){
       tflag = 1;
       break;
       case 'n':
-      encryption = false;
+      encryption = true;
       break;
       case 's':
       sflag = 1;
@@ -292,6 +293,7 @@ int main(int argc, char* argv[]){
       char line[NI_MAXSERV + PASSPHRASE_SIZE*2 +1];
       char * hex_pp;
 
+      //should probably only do if encryption turned on
       if(key_dir == NULL){
         key_filename = key_base_filename;
       }
@@ -300,7 +302,7 @@ int main(int argc, char* argv[]){
         sprintf(key_filename, "%s/%s", key_dir, key_base_filename);
       }
 
-      //only allowing local -> remote for now
+      //use colons to determine whether local->remote or remote->local
       char * colon_loc_first = strchr(argv[argc-2], ':');
       char * colon_loc_second = strchr(argv[argc-1], ':');
       char * colon_loc;

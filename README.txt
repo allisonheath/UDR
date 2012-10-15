@@ -1,4 +1,4 @@
-UDR - trial beta version 0.1b - please do not distribute.
+UDR
 
 UDR is a wrapper around UDT that can be used with rsync.
 
