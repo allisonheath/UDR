@@ -37,7 +37,7 @@ UDR must be on the client and server machines that data will be transferred betw
 The rsync [rsync options] should take any of the standard rsync options.
 
 ### An example command:
-    ./udr -c /home/aheath/projects/udr/src/udr rsync -av --stats --progress /home/aheath/tmp/ 192.168.1.102:/home/aheath/tmp2
+    ./udr -c /home/user/projects/udr/src/udr rsync -av --stats --progress /home/user/tmp/ hostname.com:/home/user/tmp
 
 ### Notes:
 After the rsync data transfer is complete, the local udr thread is shutdown by a signal. Rsync thinks this is abnormal and prints out the error "rsync error: sibling process terminated abnormally", which can be ignored. However, the transfer should be complete, if other rsync errors appear these are true errors.
