@@ -8,16 +8,15 @@ CONTENT
 ./src:     UDR source code
 ./udt:	   UDT source code, documentation and license
 
-DEPENDENCIES
-------------
-OpenSSL (libssl and libcrypto)
-
-TO MAKE: 
+TO MAKE
+------- 
     make -e os=XXX arch=YYY 
 
 XXX: [LINUX(default), BSD, OSX] 
 YYY: [IA32(default), POWERPC, IA64, AMD64]
 
+### Dependencies:
+OpenSSL (libssl and libcrypto)
 Currently, UDR has mainly been tested on Linux so your mileage may vary on another OS. UDT has been well tested on all of the provided options.
 
 TO USE
