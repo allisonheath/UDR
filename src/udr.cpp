@@ -155,7 +155,7 @@ int run_rsync(char* rsync_argv[], int * ptc, int * ctp){
 }
 
 void usage(){
-  fprintf(stderr, "usage: udr [-n] [-c remote udr location] rsync [rsync options]\n");
+  fprintf(stderr, "usage: udr [-n] [-v] [-a starting port number] [-b ending port number] [-c remote udr location] rsync [rsync options]\n");
   exit(1);
 }
 
