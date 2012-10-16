@@ -14,7 +14,7 @@
 
 # The UDR binary and other files
 src/udr
-src/.udr_key
+*.udr_key
 udt/app/appclient
 udt/app/appserver
 udt/app/recvfile

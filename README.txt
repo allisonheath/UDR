@@ -1,4 +1,4 @@
-UDR
+UDR - Development Version
 
 UDR is a wrapper around UDT that can be used with rsync.
 
@@ -16,16 +16,17 @@ XXX: [LINUX(default), BSD, OSX]
 YYY: [IA32(default), POWERPC, IA64, AMD64]
 
 TO USE:
-UDR must be on the client and server machines that data will be transferred between. UDR uses ssh to do authentication and automatically start the server-side UDR process. Encryption is on by default, using the OpenSSL implementation of blowfish. Currently, encryption appears to reduce the speed by about half, this should be improved in future versions. 
+UDR must be on the client and server machines that data will be transferred between. UDR uses ssh to do authentication and automatically start the server-side UDR process. At least one UDP port needs to be open between the machines, by default UDR starts with port 9000 and looks for an open port up to 9100, changing this is an option. Encryption is off by default. When turned on encryption uses the OpenSSL implementation of blowfish. Currently, encryption appears to reduce the speed by about half, this should be improved in future versions. 
 
 Basic usage:
 udr [udr options] rsync [rsync options] src dest
 
 UDR options:
 [-v] verbose mode, typically for debugging purposes
-[-p starting port number] default is 9000
-[-q ending port number] default is 9100
-[-n] turns off encryption
+[-a starting port number] default is 9000
+[-b ending port number] default is 9100
+[-n] turns on encryption
+[-p path] local path for the .udr_key file used for encryption, default is the current directory 
 [-c remote udr location] by default udr assumes that udr is in your path on the remote system, here you can specify the location explicitly
 
 The rsync [rsync options] should take any of the standard rsync options.

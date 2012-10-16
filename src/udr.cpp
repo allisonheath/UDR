@@ -299,7 +299,7 @@ int main(int argc, char* argv[]){
       char line[NI_MAXSERV + PASSPHRASE_SIZE*2 +1];
       char * hex_pp;
 
-      //should probably only do if encryption turned on
+      
       if(key_dir == NULL){
         key_filename = key_base_filename;
       }
@@ -353,7 +353,7 @@ int main(int argc, char* argv[]){
 
 
       char udr_args[100];
-      if(!encryption)
+      if(encryption)
         strcpy(udr_args, "-n ");
       else
         udr_args[0] = '\0';
@@ -391,15 +391,17 @@ int main(int argc, char* argv[]){
         fprintf(stderr, "%s port_num: %s passphrase: %s\n", which_process, port_num, hex_pp);
       }
 
-      FILE *key_file = fopen(key_filename, "w");
-      int succ = chmod(key_filename, S_IRUSR|S_IWUSR);
+      if(encryption){
+        FILE *key_file = fopen(key_filename, "w");
+        int succ = chmod(key_filename, S_IRUSR|S_IWUSR);
 
-      if(key_file == NULL){
-        fprintf(stderr, "ERROR: could not write key file: %s\n", key_filename);
-        exit(-1);
-      }
-      fprintf(key_file, "%s", hex_pp);
-      fclose(key_file);
+        if(key_file == NULL){
+          fprintf(stderr, "ERROR: could not write key file: %s\n", key_filename);
+          exit(-1);
+        }
+        fprintf(key_file, "%s", hex_pp);
+        fclose(key_file);
+      } 
 
       //make sure the port num str is null terminated 
       char * ptr;
@@ -426,7 +428,7 @@ int main(int argc, char* argv[]){
 
       char udr_rsync_args1[20];
 
-      if(!encryption)
+      if(encryption)
         strcpy(udr_rsync_args1, "-n ");
       else
         udr_rsync_args1[0] = '\0';

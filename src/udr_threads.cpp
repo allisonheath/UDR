@@ -27,9 +27,6 @@ and limitations under the License.
 #include "udr.h"
 #include "udr_threads.h"
 
-//the timeout can be used as a way to get around the issues happening with the final handle_to_udt thread hanging because can't get the signaling to work properly
-//nope the timeout causes premature timeouts...
-//int timeout = 10000;
 int ppid_poll = 2;
 bool thread_log = false;
 string local_logfile_dir = "/home/aheath/projects/udr/log/thread_";
@@ -76,7 +73,7 @@ string udt_recv_string( int udt_handle ) {
 }
 
 //Something bad is happening with the threading / signaling to interrupt the blocking read here, get stack smashing if try to handle gracefully
-//This is the root of the rsync error that is thrown at the end.
+//Just let the spurious rsync error occur for now
 void *handle_to_udt(void *threadarg) {
   struct thread_data *my_args = (struct thread_data *) threadarg;
   char indata[max_block_size];
@@ -229,7 +226,6 @@ int run_sender(char* receiver, char* receiver_port, bool encryption, unsigned ch
     return 1;
   }
 
-  // connect to the server, implict bind
   if (UDT::ERROR == UDT::connect(client, peer->ai_addr, peer->ai_addrlen)) {
     cerr << "Sender: connect: " << UDT::getlasterror().getErrorMessage() << endl;
     return 1;
@@ -237,16 +233,10 @@ int run_sender(char* receiver, char* receiver_port, bool encryption, unsigned ch
 
   freeaddrinfo(peer);
 
-  // not using CC method -- perhaps an option later?
+  // not using CC method yet
   //CUDPBlast* cchandle = NULL;
   int value;
   int temp;
-
-  //UDT::getsockopt(client, 0, UDT_SNDBUF, &value, &temp);
-  //UDT::setsockopt(client, 0, UDT_SNDTIMEO, "1000", 4);
-  //cerr << "UDT_SNDBUF value: " << (int)value << endl;
-  //UDT::getsockopt(client, 0, UDT_RCVBUF, &value, &temp);
-  //cerr << "UDT_RCVBUF value: " << (int)value << endl;
   
   char* data = new char[max_block_size];
 
@@ -265,9 +255,6 @@ int run_sender(char* receiver, char* receiver_port, bool encryption, unsigned ch
 
     ssize += ss;
   }
-
-  //set the recv timeout?
-  //UDT::setsockopt(client, 0, UDT_RCVTIMEO, &timeout, sizeof(int)); 
 
   struct thread_data sender_to_udt;
   sender_to_udt.udt_socket = &client;
@@ -346,7 +333,6 @@ int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mod
     snprintf(receiver_port, sizeof(receiver_port), "%d", port_num);
     
     if (0 != getaddrinfo(NULL, receiver_port, &hints, &res)) {
-      //fprintf(stderr, "Illegal port number or port is busy.\n");
       bad_port = true;
     }
     else {
@@ -370,7 +356,7 @@ int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mod
   unsigned char rand_pp[PASSPHRASE_SIZE];
   int success = RAND_bytes((unsigned char *) rand_pp, PASSPHRASE_SIZE);
 
-  //std out port number and password -- to send back to the client
+  //stdout port number and password -- to send back to the client
   printf("%s ", receiver_port);  
   
   for(int i = 0; i < PASSPHRASE_SIZE; i++) {
@@ -403,7 +389,6 @@ int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mod
 
   string cmd_str = udt_recv_string(recver);
 
-  //parse the string into an array of argv for exec
   vector<char*> args;
 
   char *p = strtok( strdup(cmd_str.c_str()) , " " );
@@ -414,11 +399,7 @@ int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mod
 
   args.push_back( p );
 
-  //set the receiving timeout?
-  //UDT::setsockopt(recver, 0, UDT_RCVTIMEO, &timeout, sizeof(int)); 
-  
   //now fork and exec the rsync server
-
   int child_to_parent, parent_to_child;
   int rsync_pid = run_rsync(&args[0], &parent_to_child, &child_to_parent);
   if(verbose_mode)
@@ -463,7 +444,9 @@ int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mod
   }
 
   //going to poll if the ppid changes then we know it's exited and then we exit all of our threads and exit as well
+  //bit of a hack to deal with the pthreads
   //also check if the threads have exited to break, still have the joins to ensure any cleanup is also completed
+  
   while(true){
     if(getppid() != orig_ppid){
       pthread_kill(recv_to_udt_thread, SIGUSR1);
@@ -474,6 +457,7 @@ int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mod
       break;
     sleep(ppid_poll);
   }
+
 
   int rc1 = pthread_join(recv_to_udt_thread, NULL);
   if(verbose_mode)
@@ -490,7 +474,6 @@ int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mod
   if(verbose_mode)
     fprintf(stderr, "Receiver: Closed serv\n");
 
-  // use this function to release the UDT library
   UDT::cleanup();
 
   if(verbose_mode)

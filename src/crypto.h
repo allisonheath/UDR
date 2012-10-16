@@ -62,7 +62,7 @@ public:
  crypto( int direc, int len, unsigned char* password)
   {
     BF_set_key( &key , len , (unsigned char *) password );
-    //free_key( password );
+    //free_key( password ); can't free here because is reused by threads
 
     memset( ivec , 0 , 1024 );
     num = 0;
