@@ -28,12 +28,12 @@ UDR must be on the client and server machines that data will be transferred betw
 udr [udr options] rsync [rsync options] src dest
 
 ### UDR options:
-[-v] verbose mode, typically for debugging purposes
-[-a starting port number] default is 9000
-[-b ending port number] default is 9100
-[-n] turns on encryption
-[-p path] local path for the .udr_key file used for encryption, default is the current directory 
-[-c remote udr location] by default udr assumes that udr is in your path on the remote system, here you can specify the location explicitly
+[-v] verbose mode, typically for debugging purposes  
+[-a starting port number] default is 9000  
+[-b ending port number] default is 9100  
+[-n] turns on encryption  
+[-p path] local path for the .udr_key file used for encryption, default is the current directory   
+[-c remote udr location] by default udr assumes that udr is in your path on the remote system, here you can specify the location explicitly  
 
 The rsync [rsync options] should take any of the standard rsync options.
 
