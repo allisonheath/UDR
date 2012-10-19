@@ -18,7 +18,5 @@ and limitations under the License.
 #ifndef UDR_H
 #define UDR_H
 
-int run_ssh(const char* host, const char* remuser, const char *cmd, int *ptc, int *ctp);
-int run_rsync(char* rsync_argv[], int * ptc, int * ctp);
 
 #endif

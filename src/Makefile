@@ -44,19 +44,9 @@ all: $(APP)
 
 %.o: %.cpp 
 	$(C++) $(CCFLAGS) $< -c
-udr: udr.o udr_threads.o
-	$(C++) $^ -o $@ $(LDFLAGS)
 
-threads_test: threads_test.o
+udr: udr.o udr_threads.o udr_processes.o
 	$(C++) $^ -o $@ $(LDFLAGS)
-
-sig_test: sig_test.o
-	$(C++) $^ -o $@ $(LDFLAGS)
-
-sig_test2: sig_test2.o
-	$(C++) $^ -o $@ $(LDFLAGS)
-#test: test.o
-#	$(C++) $^ -o $@ $(LDFLAGS)
 
 clean:
 	rm -f *.o $(APP)

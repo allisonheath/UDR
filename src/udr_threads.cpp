@@ -16,15 +16,16 @@ See the License for the specific language governing permissions
 and limitations under the License.
 *****************************************************************************/
 
+#include <unistd.h>
 #include <pthread.h>
 #include <sstream>
 #include <signal.h>
 #include <netdb.h>
 #include <errno.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <udt.h>
 #include "udr.h"
+#include "udr_processes.h"
 #include "udr_threads.h"
 
 int ppid_poll = 2;
@@ -309,7 +310,7 @@ int run_sender(char* receiver, char* receiver_port, bool encryption, unsigned ch
   return 0;  
 }
 
-int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mode) {
+int run_receiver(int start_port, int end_port, const char * rsync_program, bool encryption, bool verbose_mode) {
   int orig_ppid = getppid();
 
   UDT::startup();
@@ -401,7 +402,7 @@ int run_receiver(int start_port, int end_port, bool encryption, bool verbose_mod
 
   //now fork and exec the rsync server
   int child_to_parent, parent_to_child;
-  int rsync_pid = run_rsync(&args[0], &parent_to_child, &child_to_parent);
+  int rsync_pid = fork_execvp(rsync_program, &args[0], &parent_to_child, &child_to_parent);
   if(verbose_mode)
     fprintf(stderr, "Receiver: rsync pid: %d\n", rsync_pid);
 
