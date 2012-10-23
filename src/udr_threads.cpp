@@ -24,12 +24,13 @@ and limitations under the License.
 #include <errno.h>
 #include <sys/types.h>
 #include <udt.h>
-#include "udr.h"
 #include "udr_processes.h"
 #include "udr_threads.h"
 
 int ppid_poll = 2;
 bool thread_log = false;
+
+//for debugging
 string local_logfile_dir = "/home/aheath/projects/udr/log/thread_";
 
 void print_bytes(FILE* file, const void *object, size_t size) {
@@ -49,6 +50,7 @@ string convert_int(int number) {
   return ss.str();
 }
 
+//perhaps want a timeout here now with daemon mode?
 string udt_recv_string( int udt_handle ) {
   char buf[ 2 ];
   buf[ 1 ] = '\0';
@@ -310,7 +312,7 @@ int run_sender(char* receiver, char* receiver_port, bool encryption, unsigned ch
   return 0;  
 }
 
-int run_receiver(int start_port, int end_port, const char * rsync_program, bool encryption, bool verbose_mode) {
+int run_receiver(int start_port, int end_port, const char * rsync_program, bool encryption, bool verbose_mode, bool is_daemon) {
   int orig_ppid = getppid();
 
   UDT::startup();
@@ -353,6 +355,8 @@ int run_receiver(int start_port, int end_port, const char * rsync_program, bool 
     fprintf(stderr, "Receiver: ERROR: could not bind to any port in range %d - %d\n", start_port, end_port);
     return 0;
   }
+
+  
   
   unsigned char rand_pp[PASSPHRASE_SIZE];
   int success = RAND_bytes((unsigned char *) rand_pp, PASSPHRASE_SIZE);
@@ -378,6 +382,9 @@ int run_receiver(int start_port, int end_port, const char * rsync_program, bool 
   int addrlen = sizeof(clientaddr);
 
   UDTSOCKET recver;
+  
+  //int timeout = 300000;
+  //UDT::setsockopt(recver, 0, UDT_RCVTIMEO, &timeout, sizeof(int));
 
   if (UDT::INVALID_SOCK == (recver = UDT::accept(serv, (sockaddr*)&clientaddr, &addrlen))) {
     cerr << "Receiver: accept: " << UDT::getlasterror().getErrorMessage() << endl;
@@ -388,20 +395,38 @@ int run_receiver(int start_port, int end_port, const char * rsync_program, bool 
   char clientservice[NI_MAXSERV];
   getnameinfo((sockaddr *)&clientaddr, addrlen, clienthost, sizeof(clienthost), clientservice, sizeof(clientservice), NI_NUMERICHOST|NI_NUMERICSERV);
 
+
+  //If in daemon mode, need to check that --sender is a option (read-only) and change the directory to be in the directory that is being served up.
+  char * sender_flag = "--sender";
+  bool seen_sender = false;
+
   string cmd_str = udt_recv_string(recver);
 
   vector<char*> args;
 
   char *p = strtok( strdup(cmd_str.c_str()) , " " );
   while (p) {
+    if(strcmp(p, sender_flag) == 0)
+      seen_sender = true;
+
     args.push_back( p );
     p = strtok( NULL , " " );
   }
 
-  args.push_back( p );
+  //need to send back to the client.
+  if(is_daemon && !seen_sender){
+    printf("udr: error: daemon mode is read-only\n");
+    exit(1);
+  }
+
+  //the argument is the path
+  fprintf(stderr, "last p: %s\n", p);
+  //args.push_back( p );
 
   //now fork and exec the rsync server
   int child_to_parent, parent_to_child;
+
+
   int rsync_pid = fork_execvp(rsync_program, &args[0], &parent_to_child, &child_to_parent);
   if(verbose_mode)
     fprintf(stderr, "Receiver: rsync pid: %d\n", rsync_pid);
@@ -447,8 +472,8 @@ int run_receiver(int start_port, int end_port, const char * rsync_program, bool 
   //going to poll if the ppid changes then we know it's exited and then we exit all of our threads and exit as well
   //bit of a hack to deal with the pthreads
   //also check if the threads have exited to break, still have the joins to ensure any cleanup is also completed
-  
-  while(true){
+  //maybe don't need now, easier to use --timeout with rsync, although heard doesn't always work?
+  /*while(true){
     if(getppid() != orig_ppid){
       pthread_kill(recv_to_udt_thread, SIGUSR1);
       pthread_kill(udt_to_recv_thread, SIGUSR1);
@@ -457,7 +482,7 @@ int run_receiver(int start_port, int end_port, const char * rsync_program, bool 
     if(recv_to_udt.is_complete || udt_to_recv.is_complete)
       break;
     sleep(ppid_poll);
-  }
+  }*/
 
 
   int rc1 = pthread_join(recv_to_udt_thread, NULL);

@@ -26,21 +26,12 @@ and limitations under the License.
 
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <signal.h>
 
 #include <udt.h>
 #include "crypto.h"
 #include "cc.h"
 #include "udr_threads.h"
 #include "udr_processes.h"
-#include "udr.h"
 
 using namespace std;
 
@@ -54,131 +45,34 @@ const char *rsync_program = "rsync";
 char *key_base_filename = ".udr_key";
 const char * which_process;
 
+char * daemon_port = "3490";
+char * rsync_timeout = "--timeout=30";
+
 char udr_program_src[PATH_MAX];
 char * udr_program_dest = NULL;
 
 int default_start_port = 9000;
 int default_end_port = 9100;
 
-#define PORT "3490"  // the port users will be connecting to
+char * get_udr_cmd(){
+  char udr_args[100];
+  if(encryption)
+    strcpy(udr_args, "-n ");
+  else
+    udr_args[0] = '\0';
 
-#define BACKLOG 10     // how many pending connections queue will hold
+  if(verbose_mode)
+    strcat(udr_args, "-v");
 
-void sigchld_handler(int s)
-{
-    while(waitpid(-1, NULL, WNOHANG) > 0);
+  char udr_ports[50];
+  sprintf(udr_args, "%s -a %d -b %d %s", udr_args, default_start_port, default_end_port, "-t rsync");
+
+
+  char* udr_cmd = (char *) malloc(strlen(udr_program_dest) + strlen(udr_args) + 3);
+  sprintf(udr_cmd, "%s %s", udr_program_dest, udr_args);
+  return udr_cmd;
 }
 
-// get sockaddr, IPv4 or IPv6:
-void *get_in_addr(struct sockaddr *sa)
-{
-    if (sa->sa_family == AF_INET) {
-        return &(((struct sockaddr_in*)sa)->sin_addr);
-    }
-
-    return &(((struct sockaddr_in6*)sa)->sin6_addr);
-}
-
-int run_as_daemon(char * dir){
-    int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
-    struct addrinfo hints, *servinfo, *p;
-    struct sockaddr_storage their_addr; // connector's address information
-    socklen_t sin_size;
-    struct sigaction sa;
-    int yes=1;
-    char s[INET6_ADDRSTRLEN];
-    int rv;
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE; // use my IP
-
-    if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        return 1;
-    }
-
-    // loop through all the results and bind to the first we can
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((sockfd = socket(p->ai_family, p->ai_socktype,
-                p->ai_protocol)) == -1) {
-            perror("server: socket");
-            continue;
-        }
-
-        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
-                sizeof(int)) == -1) {
-            perror("setsockopt");
-            exit(1);
-        }
-
-        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            close(sockfd);
-            perror("server: bind");
-            continue;
-        }
-
-        break;
-    }
-
-    if (p == NULL)  {
-        fprintf(stderr, "server: failed to bind\n");
-        return 2;
-    }
-
-    freeaddrinfo(servinfo); // all done with this structure
-
-    if (listen(sockfd, BACKLOG) == -1) {
-        perror("listen");
-        exit(1);
-    }
-
-    sa.sa_handler = sigchld_handler; // reap all dead processes
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-        perror("sigaction");
-        exit(1);
-    }
-
-    printf("server: waiting for connections...\n");
-
-    while(1) {  // main accept() loop
-        sin_size = sizeof their_addr;
-        new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
-        if (new_fd == -1) {
-            perror("accept");
-            continue;
-        }
-
-        inet_ntop(their_addr.ss_family,
-            get_in_addr((struct sockaddr *)&their_addr),
-            s, sizeof s);
-        printf("server: got connection from %s\n", s);
-
-        if (!fork()) { // this is the child process
-            close(sockfd); // child doesn't need the listener
-
-            char ls_results[200];
-            int lsparent_to_child, lschild_to_parent;
-            fork_execvp("ls", NULL, &lsparent_to_child, &lschild_to_parent);
-            int nbytes;
-            while((nbytes = read(lschild_to_parent, ls_results, sizeof(ls_results)-1)) != 0){
-              ls_results[nbytes] = '\0';
-              printf("%s", ls_results);
-            }
-
-            if (send(new_fd, "Hello, world!", 13, 0) == -1)
-                perror("send");
-            close(new_fd);
-            exit(0);
-        }
-        close(new_fd);  // parent doesn't need this
-    }
-
-    return 0;
-}
 
 void usage(){
   fprintf(stderr, "usage: udr [-n] [-v] [-a starting port number] [-b ending port number] [-c remote udr location] rsync [rsync options]\n");
@@ -229,7 +123,25 @@ int main(int argc, char* argv[]){
       break;
       case 'd':
       is_daemon = true;
-      daemon_dir = optarg;
+      daemon_dir = new char[PATH_MAX+1];
+      realpath(optarg, daemon_dir);
+
+      if(daemon_dir == NULL){
+        fprintf(stderr, "udr: error: could not resolve path %s\n", optarg);
+        exit(1);
+      }
+      struct stat st;
+      if(stat(daemon_dir,&st) != 0){
+        fprintf(stderr, "udr: error: directory %s is not present\n", daemon_dir);
+        exit(1);
+      }
+
+      if(!S_ISDIR(st.st_mode)){
+        fprintf(stderr, "udr: error: %s is not a directory\n", daemon_dir);
+        exit(1);
+      }
+
+
       break;
       case 'n':
       encryption = true;
@@ -273,15 +185,16 @@ int main(int argc, char* argv[]){
       fprintf(stderr, "%s Local program: %s Remote program: %s Encryption: %d\n", which_process, udr_program_src, udr_program_dest, encryption);
     }
 
-    //now for daemon mode
-    if(is_daemon){
-      return run_as_daemon(daemon_dir);
-    }
-    else{
+  
       if(tflag){
-        run_receiver(default_start_port, default_end_port, rsync_program, encryption, verbose_mode);
+        run_receiver(default_start_port, default_end_port, rsync_program, encryption, verbose_mode, is_daemon);
         if(verbose_mode)
           fprintf(stderr, "%s run_receiver done\n", which_process);
+        exit(0);
+      }
+      //now for daemon mode
+      else if(is_daemon){
+        return run_as_daemon(daemon_dir, daemon_port, udr_program_dest);
       }
       else if(sflag){
         string arguments = "";
@@ -330,21 +243,8 @@ int main(int argc, char* argv[]){
           fprintf(stderr, "%s run_sender done\n", which_process);
       }
       else{
-        int sshchild_to_parent, sshparent_to_child;
-        int nbytes;
-        char line[NI_MAXSERV + PASSPHRASE_SIZE*2 +1];
-        char * hex_pp;
-
-
-        if(key_dir == NULL){
-          key_filename = key_base_filename;
-        }
-        else{
-          key_filename = (char*)malloc(strlen(key_dir) + strlen(key_base_filename) + 2);
-          sprintf(key_filename, "%s/%s", key_dir, key_base_filename);
-        }
-
-      //use colons to determine whether local->remote or remote->local
+        /* Get username, host, and remote udr cmd */
+        //use colons to determine whether local->remote or remote->local
         char * colon_loc_first = strchr(argv[argc-2], ':');
         char * colon_loc_second = strchr(argv[argc-1], ':');
         char * colon_loc;
@@ -387,25 +287,34 @@ int main(int argc, char* argv[]){
         strncpy(host, argv[argc - remote_arg_offset]+username_len, host_len-username_len);
         host[host_len-username_len] = '\0';
 
-
-        char udr_args[100];
-        if(encryption)
-          strcpy(udr_args, "-n ");
-        else
-          udr_args[0] = '\0';
-
-        if(verbose_mode)
-          strcat(udr_args, "-v");
-
-        char udr_ports[50];
-        sprintf(udr_args, "%s -a %d -b %d %s", udr_args, default_start_port, default_end_port, "-t rsync");
+        char * udr_cmd = get_udr_cmd();
 
         if(verbose_mode){
           fprintf(stderr, "%s username: '%s' host: '%s'\n", which_process, username, host);
         }
 
-        char* udr_cmd = (char *) malloc(strlen(udr_program_dest) + strlen(udr_args) + 3);
-        sprintf(udr_cmd, "%s %s", udr_program_dest, udr_args);
+        if(key_dir == NULL){
+          key_filename = key_base_filename;
+        }
+        else{
+          key_filename = (char*)malloc(strlen(key_dir) + strlen(key_base_filename) + 2);
+          sprintf(key_filename, "%s/%s", key_dir, key_base_filename);
+        }
+
+        /* Now check to see if daemon is running */
+        int line_size = NI_MAXSERV + PASSPHRASE_SIZE*2 +1;
+        char line[line_size];
+        line[0] = '\0';
+
+        int server_exists = get_daemon_connection(host, daemon_port, udr_cmd, line, line_size);
+        if(verbose_mode){
+          fprintf(stderr, "%s server_exists %d\n", which_process, server_exists);
+        }
+
+        /* If not try ssh */
+        if(!server_exists){
+        int sshchild_to_parent, sshparent_to_child;
+        int nbytes;
 
         int ssh_argc;
         if (username)
@@ -427,7 +336,7 @@ int main(int argc, char* argv[]){
 
         fork_execvp(ssh_program, ssh_argv, &sshparent_to_child, &sshchild_to_parent);
 
-        nbytes = read(sshchild_to_parent, line, NI_MAXSERV+PASSPHRASE_SIZE*2+1);
+        nbytes = read(sshchild_to_parent, line, line_size);
 
         if(verbose_mode){
           fprintf(stderr, "%s Received string: %s\n", which_process, line);
@@ -435,11 +344,18 @@ int main(int argc, char* argv[]){
 
         if(nbytes <= 0){
           fprintf(stderr, "udr: unexpected response from server, exiting.\n");
-          exit(-1);
+          exit(1);
+        }
+        }
+        /* Now do the exact same thing no matter whether daemon or ssh process */
+
+        if(strlen(line) == 0){
+          fprintf(stderr, "udr: unexpected response from server, exiting.\n");
+          exit(1);
         }
 
         port_num = strtok(line, " ");
-        hex_pp = strtok(NULL, " ");
+        char * hex_pp = strtok(NULL, " ");
 
         if(verbose_mode){
           fprintf(stderr, "%s port_num: %s passphrase: %s\n", which_process, port_num, hex_pp);
@@ -462,7 +378,7 @@ int main(int argc, char* argv[]){
         if((ptr = strchr(port_num, '\n')) != NULL)
           *ptr = '\0';
 
-      int rsync_argc = argc - rsync_arg_idx + 4; //need two more spots
+      int rsync_argc = argc - rsync_arg_idx + 5; //need more spots
 
       char ** rsync_argv;
       rsync_argv = (char**) malloc(sizeof(char *) * rsync_argc);
@@ -474,11 +390,11 @@ int main(int argc, char* argv[]){
         rsync_idx++;
       }
       //cerr << "done copying." << endl;
-      rsync_argv[rsync_idx] = "--blocking-io";
-      rsync_idx++;
+      rsync_argv[rsync_idx++] = "--blocking-io";
 
-      rsync_argv[rsync_idx] = "-e";
-      rsync_idx++;
+      rsync_argv[rsync_idx++] = rsync_timeout;
+
+      rsync_argv[rsync_idx++] = "-e";
 
       char udr_rsync_args1[20];
 
@@ -494,6 +410,12 @@ int main(int argc, char* argv[]){
 
       const char * udr_rsync_args2 = "-p";
 
+      printf("udr_program_src: %s\n", udr_program_src);
+      printf("udr_rsync_args1: %s\n", udr_rsync_args1);
+      printf("port_num: %s\n", port_num);
+      printf("udr_rsync_args2 %s\n", udr_rsync_args2);
+      printf("key_filename %s\n", key_filename);
+
       rsync_argv[rsync_idx] = (char*) malloc(strlen(udr_program_src) + strlen(udr_rsync_args1) + strlen(port_num) + strlen(udr_rsync_args2) + strlen(key_filename) + 6);
       sprintf(rsync_argv[rsync_idx], "%s %s %s %s %s", udr_program_src, udr_rsync_args1, port_num, udr_rsync_args2, key_filename);
 
@@ -504,7 +426,7 @@ int main(int argc, char* argv[]){
       rsync_idx++;
       rsync_argv[rsync_idx] = NULL;
 
-      int child_to_parent, parent_to_child;
+      int parent_to_child, child_to_parent;
 
       pid_t local_rsync_pid = fork_execvp(rsync_program, rsync_argv, &parent_to_child, &child_to_parent);
       if(verbose_mode)
@@ -519,9 +441,8 @@ int main(int argc, char* argv[]){
       while((bytes_read = read(child_to_parent, rsync_out_buf, buf_size)) > 0){
         bytes_written = write(STDOUT_FILENO, rsync_out_buf, bytes_read);
       }
-
     }
-  }
+  
 }
 
 
