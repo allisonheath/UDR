@@ -23,10 +23,12 @@ pid_t fork_execvp(const char *program, char* argv[], int * ptc, int * ctp){
 
   char* arg;
   int idx = 0;
-  while((arg = argv[idx]) != NULL){
-    fprintf(stderr, "%s arg[%d]: %s\n", program, idx, arg);
-    idx++;
-  }
+
+  //need to figure out best way to do global parameters
+  //while((arg = argv[idx]) != NULL){
+  //  fprintf(stderr, "%s arg[%d]: %s\n", program, idx, arg);
+  //  idx++;
+  //}
 
   if(pipe(parent_to_child) != 0 || pipe(child_to_parent) != 0){
     perror("Pipe cannot be created");
@@ -140,7 +142,7 @@ if (p == NULL)  {
       exit(1);
     }
 
-    printf("udr server serving files from %s on port %s, waiting for connections...\n", dir, port);
+    printf("udr server: serving files from %s on port %s, waiting for connections...\n", dir, port);
 
     while(1) {  // main accept() loop
       sin_size = sizeof their_addr;
@@ -150,9 +152,8 @@ if (p == NULL)  {
         continue;
       }
 
-      inet_ntop(their_addr.ss_family,
-        get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
-      printf("server: got connection from %s\n", s);
+      inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
+      printf("udr server: got connection from %s\n", s);
 
         if (!fork()) { // this is the child process
             //close(sockfd); // child doesn't need the listener, now it does
@@ -169,7 +170,7 @@ if (p == NULL)  {
 
             buf[numbytes] = '\0';
 
-            printf("server: numbytes: %d received '%s'\n", numbytes, buf);
+            //printf("server: numbytes: %d received '%s'\n", numbytes, buf);
             //should check that udr command is actually udr command but for now let's just fork_execvp again
             char * tok = strtok (buf," ");
 
@@ -230,13 +231,13 @@ if (p == NULL)  {
 
       for(p = servinfo; p != NULL; p = p->ai_next){
         if((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-          perror("client: socket");
+          //perror("udr client: socket");
           continue;
         }
 
         if(connect(sockfd, p->ai_addr, p->ai_addrlen) == -1){
           close(sockfd);
-          perror("client: connect");
+          //perror("udr client: connect");
           continue;
         }
 
@@ -244,30 +245,28 @@ if (p == NULL)  {
       }
 
       if(p == NULL){
-        fprintf(stderr, "client: failed to connect\n");
+        //fprintf(stderr, "udr error: failed to connect\n");
         return 0;
       }
 
       inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr), s, sizeof s);
 
-      printf("client: connecting to %s\n", s);
       //First send the udr command
-      printf("client should be sending: %s\n", udr_cmd);
+      //printf("client should be sending: %s\n", udr_cmd);
+
       if(send(sockfd, udr_cmd, strlen(udr_cmd), 0) == -1){
-        perror("send");
+        perror("udr send");
         exit(1);
       }
 
       freeaddrinfo(servinfo);
 
       if ((numbytes = recv(sockfd, line, line_size-1, 0)) == -1) {
-        perror("recv");
+        perror("udr recv");
         exit(1);
       }
 
       line[numbytes] = '\0';
-
-      printf("client: received '%s'\n", line);
 
       close(sockfd);
 

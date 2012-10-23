@@ -184,10 +184,9 @@ int main(int argc, char* argv[]){
 
       fprintf(stderr, "%s Local program: %s Remote program: %s Encryption: %d\n", which_process, udr_program_src, udr_program_dest, encryption);
     }
-
-  
+    
       if(tflag){
-        run_receiver(default_start_port, default_end_port, rsync_program, encryption, verbose_mode, is_daemon);
+        run_receiver(default_start_port, default_end_port, rsync_program, encryption, verbose_mode, is_daemon, daemon_dir);
         if(verbose_mode)
           fprintf(stderr, "%s run_receiver done\n", which_process);
         exit(0);
@@ -198,7 +197,7 @@ int main(int argc, char* argv[]){
       }
       else if(sflag){
         string arguments = "";
-        string sep = "";
+        string sep = " ";
         char** rsync_args = &argv[rsync_arg_idx];
         int rsync_argc = argc - rsync_arg_idx;
         char hex_pp[HEX_PASSPHRASE_SIZE];
@@ -233,41 +232,111 @@ int main(int argc, char* argv[]){
           if(verbose_mode)
             fprintf(stderr, "%s rsync arg[%d]: %s\n", which_process, i, rsync_args[i]);
 
+          //hack for when no directory is specified -- because strtok is lame, probably should write own tokenizer, but this will do for now
+          if(strlen(rsync_args[i]) == 0)
+            arguments += ".";
+          else
+            arguments += rsync_args[i];
+
           arguments += sep;
-          sep = " ";
-          arguments += rsync_args[i];
         }
 
+        //fprintf(stderr, "rsync cmd: '%s'\n", arguments.c_str());
+
         run_sender(host, port_num, encryption, passphrase, verbose_mode, arguments.c_str(), rsync_argc, rsync_args);
+
         if(verbose_mode)
           fprintf(stderr, "%s run_sender done\n", which_process);
       }
       else{
+        char * source = NULL;
+        char * dest = NULL;
+        int source_idx = -1;
+        int dest_idx = -1;
+
         /* Get username, host, and remote udr cmd */
+        for(int i = rsync_arg_idx+1; i < argc; i++){
+          if(argv[i][0] == '-')
+            continue;
+          if(source_idx == -1){
+            source = argv[i];
+            source_idx = i;
+          }
+          else{
+            dest = argv[i];
+            dest_idx = i;
+            if(i != argc-1){
+              fprintf(stderr, "WARNING: Ignoring arguments after %s\n", argv[dest_idx]);
+            }
+            break;
+          }
+        }
+
+        if(source_idx == -1){
+          fprintf(stderr, "ERROR: no source specified\n");
+          exit(1);
+        }
+
+        if(verbose_mode){
+          if(dest_idx == -1)
+            fprintf(stderr, "%s Source: %s No Destination\n", which_process, argv[source_idx]);
+          else
+            fprintf(stderr, "%s Source: %s Destination: %s\n", which_process, argv[source_idx], argv[dest_idx]);
+        }
+
         //use colons to determine whether local->remote or remote->local
-        char * colon_loc_first = strchr(argv[argc-2], ':');
-        char * colon_loc_second = strchr(argv[argc-1], ':');
-        char * colon_loc;
-        int remote_arg_offset;
+        char * colon_loc_first = strchr(argv[source_idx], ':');
+        char * colon_loc_second = NULL;
+
+        int max_length;
+        if(dest_idx == -1 || strlen(argv[source_idx]) > strlen(argv[dest_idx]))
+          max_length = strlen(argv[source_idx]);
+        else
+          max_length = strlen(argv[dest_idx]);
+
+        char remote_arg[max_length];
+
+        if(dest_idx != -1)
+          colon_loc_second = strchr(argv[dest_idx], ':');
+
+        //int remote_arg_idx;
 
         if((colon_loc_first == NULL && colon_loc_second == NULL) || (colon_loc_first != NULL && colon_loc_second != NULL)){
           fprintf(stderr, "ERROR: Sorry, UDR only does local -> remote or remote -> local\n");
           exit(1);
         }
         else if(colon_loc_first != NULL){
-          colon_loc = colon_loc_first;
+          //only allowed to use double colon in first slot -- check
+          if(strlen(colon_loc_first) > 1 && colon_loc_first[1] == ':'){
+            //remove the first colon -- destructive of argv[source_idx]...
+            colon_loc_first[0] = '\0';
+            *colon_loc_first++;
+            strcpy(remote_arg, argv[source_idx]);
+            strcat(remote_arg, colon_loc_first);
+            is_daemon = true;
+          }
+          else{
+            strcpy(remote_arg, argv[source_idx]);
+          }
+
+          source = remote_arg;
           remote_to_local = true;
-          remote_arg_offset = 2;
         }
         else{
-          colon_loc = colon_loc_second;
           local_to_remote = true;
-          remote_arg_offset = 1;
+          strcpy(remote_arg, argv[dest_idx]);
+          dest = remote_arg;
+        }
+
+        char * colon_loc = strchr(remote_arg, ':');
+
+        if(verbose_mode){
+          fprintf(stderr, "%s remote_arg: %s\n", which_process, remote_arg);
         }
 
         port_num = (char*) malloc(NI_MAXSERV);
 
-        char * at_loc = strchr(argv[argc - remote_arg_offset], '@');
+        char * at_loc = strchr(remote_arg, '@');
 
       //for now don't allow -l for the initial username just @, only works for when rsync calls it
         int username_len;
@@ -276,15 +345,15 @@ int main(int argc, char* argv[]){
           username_len = 0;
         }
         else{
-          username_len = at_loc - argv[argc - remote_arg_offset] + 1;
+          username_len = at_loc - remote_arg + 1;
           username = (char *) malloc(username_len);
-          strncpy(username, argv[argc - remote_arg_offset], username_len - 1);
+          strncpy(username, remote_arg, username_len - 1);
           username[username_len-1] = '\0';
         }
 
-        int host_len = colon_loc - argv[argc - remote_arg_offset];
+        int host_len = colon_loc - remote_arg;
         host = (char *) malloc(host_len+1);
-        strncpy(host, argv[argc - remote_arg_offset]+username_len, host_len-username_len);
+        strncpy(host, remote_arg+username_len, host_len-username_len);
         host[host_len-username_len] = '\0';
 
         char * udr_cmd = get_udr_cmd();
@@ -301,18 +370,21 @@ int main(int argc, char* argv[]){
           sprintf(key_filename, "%s/%s", key_dir, key_base_filename);
         }
 
-        /* Now check to see if daemon is running */
+        
         int line_size = NI_MAXSERV + PASSPHRASE_SIZE*2 +1;
         char line[line_size];
         line[0] = '\0';
 
+        /* if given double colons then use the daemon connection */
+        if(is_daemon){
         int server_exists = get_daemon_connection(host, daemon_port, udr_cmd, line, line_size);
-        if(verbose_mode){
-          fprintf(stderr, "%s server_exists %d\n", which_process, server_exists);
-        }
-
-        /* If not try ssh */
         if(!server_exists){
+          fprintf(stderr, "ERROR: Cannot connect to server at %s:%s\n", host, daemon_port);
+          exit(1);
+        }
+      }
+        /* If not try ssh */
+        else{
         int sshchild_to_parent, sshparent_to_child;
         int nbytes;
 
@@ -410,20 +482,22 @@ int main(int argc, char* argv[]){
 
       const char * udr_rsync_args2 = "-p";
 
-      printf("udr_program_src: %s\n", udr_program_src);
-      printf("udr_rsync_args1: %s\n", udr_rsync_args1);
-      printf("port_num: %s\n", port_num);
-      printf("udr_rsync_args2 %s\n", udr_rsync_args2);
-      printf("key_filename %s\n", key_filename);
+      //printf("udr_program_src: %s\n", udr_program_src);
+      //printf("udr_rsync_args1: %s\n", udr_rsync_args1);
+      //printf("port_num: %s\n", port_num);
+      //printf("udr_rsync_args2 %s\n", udr_rsync_args2);
+      //printf("key_filename %s\n", key_filename);
 
       rsync_argv[rsync_idx] = (char*) malloc(strlen(udr_program_src) + strlen(udr_rsync_args1) + strlen(port_num) + strlen(udr_rsync_args2) + strlen(key_filename) + 6);
       sprintf(rsync_argv[rsync_idx], "%s %s %s %s %s", udr_program_src, udr_rsync_args1, port_num, udr_rsync_args2, key_filename);
 
       rsync_idx++;
-      rsync_argv[rsync_idx] = argv[argc-2];
-      rsync_idx++;
-      rsync_argv[rsync_idx] = argv[argc-1];
-      rsync_idx++;
+      rsync_argv[rsync_idx++] = source;
+
+      if(dest_idx != -1){
+        rsync_argv[rsync_idx++] = dest;
+      }
+
       rsync_argv[rsync_idx] = NULL;
 
       int parent_to_child, child_to_parent;

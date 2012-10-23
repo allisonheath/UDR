@@ -312,7 +312,8 @@ int run_sender(char* receiver, char* receiver_port, bool encryption, unsigned ch
   return 0;  
 }
 
-int run_receiver(int start_port, int end_port, const char * rsync_program, bool encryption, bool verbose_mode, bool is_daemon) {
+
+int run_receiver(int start_port, int end_port, const char * rsync_program, bool encryption, bool verbose_mode, bool is_daemon, char * daemon_dir) {
   int orig_ppid = getppid();
 
   UDT::startup();
@@ -355,8 +356,6 @@ int run_receiver(int start_port, int end_port, const char * rsync_program, bool 
     fprintf(stderr, "Receiver: ERROR: could not bind to any port in range %d - %d\n", start_port, end_port);
     return 0;
   }
-
-  
   
   unsigned char rand_pp[PASSPHRASE_SIZE];
   int success = RAND_bytes((unsigned char *) rand_pp, PASSPHRASE_SIZE);
@@ -387,7 +386,7 @@ int run_receiver(int start_port, int end_port, const char * rsync_program, bool 
   //UDT::setsockopt(recver, 0, UDT_RCVTIMEO, &timeout, sizeof(int));
 
   if (UDT::INVALID_SOCK == (recver = UDT::accept(serv, (sockaddr*)&clientaddr, &addrlen))) {
-    cerr << "Receiver: accept: " << UDT::getlasterror().getErrorMessage() << endl;
+    fprintf(stderr, "Receiver: accept: %s\n", UDT::getlasterror().getErrorMessage());
     return 0;
   }
 
@@ -415,14 +414,43 @@ int run_receiver(int start_port, int end_port, const char * rsync_program, bool 
 
   //need to send back to the client.
   if(is_daemon && !seen_sender){
-    printf("udr: error: daemon mode is read-only\n");
+    char * error_msg = "daemon mode is read-only\n";
+    //maybe log to server log?
     exit(1);
   }
 
-  //the argument is the path
-  fprintf(stderr, "last p: %s\n", p);
-  //args.push_back( p );
+  /*the last argument is the requested files
+  if we're in daemon mode, append the give path, 
+  make it into a real path and then check that it's still in the correct directory (to protect against relative pathing out */
+  if(is_daemon){
+    char path[PATH_MAX+1];
+    char real_path[PATH_MAX+1];
+    char * recv_path = args.back();
+    strcpy(path, daemon_dir);
+    strcat(path, "/");
+    strcat(path, recv_path);
+    //fprintf(stderr, "recv_path: %s path when daemon: %s\n", recv_path, path);
+    realpath(path, real_path);
+    //fprintf(stderr, "real_path when daemon %s\n", real_path);
 
+    //check that still starts with the daemon_dir
+
+    if(strncmp(daemon_dir, real_path, strlen(daemon_dir)) != 0){
+      //if it doesn't just return the daemon_dir
+      strcpy(real_path, daemon_dir);
+    }
+
+    //make sure we get the trailing slash right...
+    if(recv_path[strlen(recv_path)-1] == '/' || recv_path[strlen(recv_path)-1] == '.'){
+      strcat(real_path, "/");
+    }
+
+    //otherwise remove the path provided and replace it with the new path
+    //fprintf(stderr, "path sent to server process: %s\n", real_path);
+    args.pop_back();
+    args.push_back(real_path);
+
+  }
   //now fork and exec the rsync server
   int child_to_parent, parent_to_child;
 
