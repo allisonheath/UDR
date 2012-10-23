@@ -37,6 +37,6 @@ void *handle_to_udt(void *threadarg);
 void *udt_to_handle(void *threadarg);
 
 int run_sender(char* receiver, char* receiver_port, bool encryption, unsigned char * passphrase, bool verbose_mode, const char* cmd, int argc, char ** argv);
-int run_receiver(int start_port, int end_port, const char * rsync_program, bool encryption, bool verbose_mode, bool is_daemon, char * daemon_dir);
+int run_receiver(int start_port, int end_port, const char * rsync_program, bool encryption, bool verbose_mode, bool is_server, char * server_dir);
 
 #endif

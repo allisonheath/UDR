@@ -78,7 +78,7 @@ void *get_in_addr(struct sockaddr *sa)
   return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-int run_as_daemon(char * dir, char * port, char * udr_program_dest){
+int run_as_server(char * dir, char * port, char * udr_program_dest){
   int backlog = 10;
     int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
     struct addrinfo hints, *servinfo, *p;
@@ -212,7 +212,7 @@ if (p == NULL)  {
       return 0;
     }
 
-    int get_daemon_connection(char * host, char * port, char * udr_cmd, char * line, int line_size){
+    int get_server_connection(char * host, char * port, char * udr_cmd, char * line, int line_size){
    //first check to see udr server is running.... 
 
       int sockfd, numbytes;

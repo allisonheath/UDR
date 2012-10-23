@@ -38,14 +38,14 @@ using namespace std;
 //Need a better way to handle global parameters/options
 bool verbose_mode = false;
 bool encryption = false;
-bool is_daemon = false;
+bool is_server = false;
 
 char *ssh_program = "ssh";
 const char *rsync_program = "rsync";
 char *key_base_filename = ".udr_key";
 const char * which_process;
 
-char * daemon_port = "3490";
+char * server_port = "3490";
 char * rsync_timeout = "--timeout=30";
 
 char udr_program_src[PATH_MAX];
@@ -87,7 +87,7 @@ int main(int argc, char* argv[]){
   char * key_dir = NULL;
   char * key_filename = NULL;
   char * username = NULL;
-  char * daemon_dir = NULL;
+  char * server_dir = NULL;
   bool local_to_remote, remote_to_local;
   local_to_remote = remote_to_local = false;
 
@@ -122,22 +122,22 @@ int main(int argc, char* argv[]){
       tflag = 1;
       break;
       case 'd':
-      is_daemon = true;
-      daemon_dir = new char[PATH_MAX+1];
-      realpath(optarg, daemon_dir);
+      is_server = true;
+      server_dir = new char[PATH_MAX+1];
+      realpath(optarg, server_dir);
 
-      if(daemon_dir == NULL){
+      if(server_dir == NULL){
         fprintf(stderr, "udr: error: could not resolve path %s\n", optarg);
         exit(1);
       }
       struct stat st;
-      if(stat(daemon_dir,&st) != 0){
-        fprintf(stderr, "udr: error: directory %s is not present\n", daemon_dir);
+      if(stat(server_dir,&st) != 0){
+        fprintf(stderr, "udr: error: directory %s is not present\n", server_dir);
         exit(1);
       }
 
       if(!S_ISDIR(st.st_mode)){
-        fprintf(stderr, "udr: error: %s is not a directory\n", daemon_dir);
+        fprintf(stderr, "udr: error: %s is not a directory\n", server_dir);
         exit(1);
       }
 
@@ -186,14 +186,14 @@ int main(int argc, char* argv[]){
     }
     
       if(tflag){
-        run_receiver(default_start_port, default_end_port, rsync_program, encryption, verbose_mode, is_daemon, daemon_dir);
+        run_receiver(default_start_port, default_end_port, rsync_program, encryption, verbose_mode, is_server, server_dir);
         if(verbose_mode)
           fprintf(stderr, "%s run_receiver done\n", which_process);
         exit(0);
       }
-      //now for daemon mode
-      else if(is_daemon){
-        return run_as_daemon(daemon_dir, daemon_port, udr_program_dest);
+      //now for server mode
+      else if(is_server){
+        return run_as_server(server_dir, server_port, udr_program_dest);
       }
       else if(sflag){
         string arguments = "";
@@ -313,7 +313,7 @@ int main(int argc, char* argv[]){
             *colon_loc_first++;
             strcpy(remote_arg, argv[source_idx]);
             strcat(remote_arg, colon_loc_first);
-            is_daemon = true;
+            is_server = true;
           }
           else{
             strcpy(remote_arg, argv[source_idx]);
@@ -375,11 +375,11 @@ int main(int argc, char* argv[]){
         char line[line_size];
         line[0] = '\0';
 
-        /* if given double colons then use the daemon connection */
-        if(is_daemon){
-        int server_exists = get_daemon_connection(host, daemon_port, udr_cmd, line, line_size);
+        /* if given double colons then use the server connection */
+        if(is_server){
+        int server_exists = get_server_connection(host, server_port, udr_cmd, line, line_size);
         if(!server_exists){
-          fprintf(stderr, "ERROR: Cannot connect to server at %s:%s\n", host, daemon_port);
+          fprintf(stderr, "ERROR: Cannot connect to server at %s:%s\n", host, server_port);
           exit(1);
         }
       }
@@ -419,7 +419,7 @@ int main(int argc, char* argv[]){
           exit(1);
         }
         }
-        /* Now do the exact same thing no matter whether daemon or ssh process */
+        /* Now do the exact same thing no matter whether server or ssh process */
 
         if(strlen(line) == 0){
           fprintf(stderr, "udr: unexpected response from server, exiting.\n");
