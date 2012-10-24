@@ -299,12 +299,12 @@ int run_sender(char* receiver, char* receiver_port, bool encryption, unsigned ch
   if(verbose_mode)
     fprintf(stderr, "Sender: joined on udt_to_sender_thread %d\n", rc1);
 
-  pthread_kill(sender_to_udt_thread, SIGUSR1);
+  //pthread_kill(sender_to_udt_thread, SIGUSR1);
   
-  int rc2 = pthread_join(sender_to_udt_thread, NULL);
+  //int rc2 = pthread_join(sender_to_udt_thread, NULL);
 
-  if(verbose_mode)
-    fprintf(stderr, "Sender: joined on sender_to_udt_thread %d\n", rc2);
+  //if(verbose_mode)
+  //  fprintf(stderr, "Sender: joined on sender_to_udt_thread %d\n", rc2);
 
   UDT::close(client);
   UDT::cleanup();
