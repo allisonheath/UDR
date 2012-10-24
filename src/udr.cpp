@@ -96,7 +96,7 @@ int main(int argc, char* argv[]){
   if(argc < 1)
     usage();
 
-  char *ptr = realpath(argv[0], udr_program_src);
+  strcpy(udr_program_src, argv[0]);
 
   for(int i = 0; i < argc; i++){
     if(strcmp(argv[i], "rsync") == 0){
