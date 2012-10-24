@@ -22,9 +22,10 @@ and limitations under the License.
 #include <signal.h>
 #include <netdb.h>
 #include <errno.h>
+#include <syslog.h>
 #include <sys/types.h>
 #include <udt.h>
-#include "udr_processes.h"
+#include "udr_util.h"
 #include "udr_threads.h"
 
 int ppid_poll = 2;
@@ -415,7 +416,7 @@ int run_receiver(int start_port, int end_port, const char * rsync_program, bool 
   //need to send back to the client.
   if(is_server && !seen_sender){
     char * error_msg = "server mode is read-only\n";
-    //maybe log to server log?
+    //maybe log to server log -- can't send back because rsync doesn't expect and gives the is your shell clean error
     exit(1);
   }
 
@@ -429,18 +430,16 @@ int run_receiver(int start_port, int end_port, const char * rsync_program, bool 
     strcpy(path, server_dir);
     strcat(path, "/");
     strcat(path, recv_path);
-    //fprintf(stderr, "recv_path: %s path when server: %s\n", recv_path, path);
     realpath(path, real_path);
-    //fprintf(stderr, "real_path when server %s\n", real_path);
+    openlog("udr", LOG_PID , LOG_DAEMON);
 
     //check that still starts with the server_dir
-
     if(strncmp(server_dir, real_path, strlen(server_dir)) != 0){
       //if it doesn't just return the server_dir
       strcpy(real_path, server_dir);
     }
 
-    //make sure we get the trailing slash right...
+    //make sure we get the trailing slash right
     if(recv_path[strlen(recv_path)-1] == '/' || recv_path[strlen(recv_path)-1] == '.'){
       strcat(real_path, "/");
     }
@@ -449,11 +448,11 @@ int run_receiver(int start_port, int end_port, const char * rsync_program, bool 
     //fprintf(stderr, "path sent to server process: %s\n", real_path);
     args.pop_back();
     args.push_back(real_path);
-
+    syslog(LOG_INFO, "connection %s requesting %s\n", clienthost, real_path);
   }
+
   //now fork and exec the rsync server
   int child_to_parent, parent_to_child;
-  
   
   int rsync_pid = fork_execvp(rsync_program, &args[0], &parent_to_child, &child_to_parent);
 

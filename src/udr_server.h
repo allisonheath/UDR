@@ -1,5 +1,5 @@
-#ifndef UDR_PROCESSES_H
-#define UDR_PROCESSES_H
+#ifndef UDR_SERVER_H
+#define UDR_SERVER_H
 
 pid_t fork_execvp(const char *program, char* argv[], int * ptc, int * ctp);
 int run_as_server(char * dir, char * port, char * udr_program_dest);

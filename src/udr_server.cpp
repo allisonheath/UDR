@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
+#include <syslog.h>
+#include <errno.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -13,55 +15,9 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include "udr_util.h"
 
 using namespace std;
-
-pid_t fork_execvp(const char *program, char* argv[], int * ptc, int * ctp){
-  pid_t pid;
-
-  int parent_to_child[2], child_to_parent[2];
-
-  char* arg;
-  int idx = 0;
-
-  //need to figure out best way to do global parameters
-  //while((arg = argv[idx]) != NULL){
-  //  fprintf(stderr, "%s arg[%d]: %s\n", program, idx, arg);
-  //  idx++;
-  //}
-
-  if(pipe(parent_to_child) != 0 || pipe(child_to_parent) != 0){
-    perror("Pipe cannot be created");
-    exit(1);
-  }
-
-  pid = fork();
-
-  if(pid == 0){
-    //child
-    close(parent_to_child[1]);
-    dup2(parent_to_child[0], 0);
-    close(child_to_parent[0]);
-    dup2(child_to_parent[1], 1);
-
-    execvp(program, argv);
-    perror(program);
-    exit(1);
-  }
-  else if(pid == -1){
-    fprintf(stderr, "Error starting %s\n", program);
-    exit(1);
-  }
-  else{
-    //parent
-    close(parent_to_child[0]);
-    *ptc = parent_to_child[1];
-    close(child_to_parent[1]);
-    *ctp = child_to_parent[0];
-  }
-  return pid;
-}
-
 
 void sigchld_handler(int s)
 {
@@ -89,13 +45,15 @@ int run_as_server(char * dir, char * port, char * udr_program_dest){
     char s[INET6_ADDRSTRLEN];
     int rv;
 
+    openlog("udr", LOG_PID , LOG_DAEMON);
+
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE; // use my IP
 
     if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
-      fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+      syslog (LOG_WARNING, "getaddrinfo: %s\n", gai_strerror(rv));
       return 1;
     }
 
@@ -103,19 +61,18 @@ int run_as_server(char * dir, char * port, char * udr_program_dest){
     for(p = servinfo; p != NULL; p = p->ai_next) {
       if ((sockfd = socket(p->ai_family, p->ai_socktype,
         p->ai_protocol)) == -1) {
-        perror("server: socket");
+        syslog(LOG_WARNING, "socket: %s", strerror(errno));
       continue;
     }
 
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
-      sizeof(int)) == -1) {
-      perror("setsockopt");
-    exit(1);
-  }
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+        syslog(LOG_WARNING, "setsockopt: %s", strerror(errno));
+        exit(1);
+    }
 
   if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
     close(sockfd);
-    perror("server: bind");
+    syslog(LOG_WARNING, "bind: %s", strerror(errno));
     continue;
   }
 
@@ -123,14 +80,14 @@ int run_as_server(char * dir, char * port, char * udr_program_dest){
 }
 
 if (p == NULL)  {
-  fprintf(stderr, "server: failed to bind\n");
+  syslog(LOG_WARNING, "failed to bind");
   return 2;
 }
 
     freeaddrinfo(servinfo); // all done with this structure
 
-    if (listen(sockfd, backlog) == -1) {
-      perror("listen");
+    if (listen(sockfd, backlog) == -1) { 
+      syslog(LOG_WARNING, "listen: %s", strerror(errno));
       exit(1);
     }
 
@@ -138,25 +95,28 @@ if (p == NULL)  {
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_RESTART;
     if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-      perror("sigaction");
+      syslog(LOG_WARNING, "sigaction: %s", strerror(errno));
       exit(1);
     }
 
-    printf("udr server: serving files from %s on port %s, waiting for connections...\n", dir, port);
+    syslog (LOG_NOTICE, "started on port %s, serving files from %s, waiting for connections...\n", port, dir);
+
+    //daemonize here?
+    daemon(1, 0);
 
     while(1) {  // main accept() loop
       sin_size = sizeof their_addr;
       new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
       if (new_fd == -1) {
-        perror("accept");
+        syslog(LOG_WARNING, "accept: %s", strerror(errno));
         continue;
       }
 
       inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
-      printf("udr server: got connection from %s\n", s);
+      syslog(LOG_NOTICE, "new connection from %s\n", s);
 
         if (!fork()) { // this is the child process
-            //close(sockfd); // child doesn't need the listener, now it does
+            close(sockfd); // child doesn't need the listener
             int numbytes;
 
             int buf_size = 200;
@@ -164,7 +124,7 @@ if (p == NULL)  {
 
             char buf[buf_size];
             if((numbytes = recv(new_fd, buf, buf_size-1, 0)) == -1){
-              perror("recv");
+              syslog(LOG_WARNING, "recv: %s", strerror(errno));
               exit(1);
             }
 
@@ -177,7 +137,7 @@ if (p == NULL)  {
             //We're going to ignore the udr program that the client sends in this case for safety
             char * udr_program_client = tok;
 
-            //Need to dead with this better
+            //Need to deal with this better
             char ** udr_argv = (char**) malloc(sizeof(char *) * num_args+2); 
             int idx = 0;
             udr_argv[idx++] = udr_program_dest;
@@ -189,8 +149,6 @@ if (p == NULL)  {
             } while(tok != NULL);
 
             int parent_to_child, child_to_parent;
-            
-
             fork_execvp(udr_program_dest, udr_argv, &parent_to_child, &child_to_parent);
 
             //at this point this process should wait for the udr process to end
@@ -201,9 +159,8 @@ if (p == NULL)  {
             while((bytes_read = read(child_to_parent, udr_out_buf, buf_size)) > 0){
               //then send this info back to the client
               if(send(new_fd, udr_out_buf, buf_size-1, 0) == -1)
-                perror("send");
+                syslog(LOG_WARNING, "send: %s", strerror(errno));
             }
-
             exit(0);
           }
         close(new_fd);  // parent doesn't need this

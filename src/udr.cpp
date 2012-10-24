@@ -31,7 +31,7 @@ and limitations under the License.
 #include "crypto.h"
 #include "cc.h"
 #include "udr_threads.h"
-#include "udr_processes.h"
+#include "udr_server.h"
 
 using namespace std;
 
@@ -46,7 +46,7 @@ char *key_base_filename = ".udr_key";
 const char * which_process;
 
 char * server_port = "3490";
-char * rsync_timeout = "--timeout=30";
+char * rsync_timeout = "--timeout=15";
 
 char udr_program_src[PATH_MAX];
 char * udr_program_dest = NULL;
