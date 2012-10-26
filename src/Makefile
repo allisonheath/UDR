@@ -46,6 +46,7 @@ all: $(APP)
 	$(C++) $(CCFLAGS) $< -c
 
 udr: udr.o udr_threads.o udr_server.o udr_util.o
+	./version.sh
 	$(C++) $^ -o $@ $(LDFLAGS)
 
 clean:
