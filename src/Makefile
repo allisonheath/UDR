@@ -38,11 +38,11 @@ endif
 
 DIR = $(shell pwd)
 
-APP = version udr #test
+APP = version.h udr #test
 
 all: $(APP)
 
-version:
+version.h:
 	./version.sh
 
 %.o: %.cpp 
@@ -52,7 +52,7 @@ udr: udr.o udr_threads.o udr_server.o udr_util.o
 	$(C++) $^ -o $@ $(LDFLAGS)
 
 clean:
-	rm -f *.o $(APP) version.h
+	rm -f *.o $(APP)
 
 install:
 	export PATH=$(DIR):$$PATH
