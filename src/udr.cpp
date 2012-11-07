@@ -431,9 +431,9 @@ int main(int argc, char* argv[]){
 
       int ssh_argc;
       if (username)
-        ssh_argc = 5;
+        ssh_argc = 6;
       else
-        ssh_argc = 4;
+        ssh_argc = 5;
 
       char ** ssh_argv;
       ssh_argv = (char**) malloc(sizeof(char *) * ssh_argc);
@@ -446,6 +446,14 @@ int main(int argc, char* argv[]){
       }
       ssh_argv[ssh_idx++] = host;
       ssh_argv[ssh_idx++] = udr_cmd;
+      ssh_argv[ssh_idx++] = NULL;
+
+      if(verbose_mode){
+        fprintf(stderr, "ssh_program %s\n", ssh_program);
+        for(int i = 0; i < ssh_idx; i++){
+          fprintf(stderr, "ssh_argv[%d]: %s\n", i, ssh_argv[i]);
+        }
+      }
 
       fork_execvp(ssh_program, ssh_argv, &sshparent_to_child, &sshchild_to_parent);
 
