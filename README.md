@@ -48,7 +48,7 @@ After the rsync data transfer is complete, the local udr thread is shutdown by a
 
 UDR SERVER (beta)
 ----------
-The UDR server allows UDR transfers for users without accounts. The UDR server is started by using the -d option which takes as an argument the path that contains the files to be served out. The server does not support encryption, so options related to encryption are not valid. By default the server listens on TCP port 3490, which can be changed by using [-o port number]. 
+The server functionality is incomplete, but here's how it works currently for testing purposes. The UDR server allows UDR transfers for users without accounts. The UDR server is started by using the -d option which takes as an argument the path that contains the files to be served out. The server does not support encryption, so options related to encryption are not valid. By default the server listens on TCP port 3490, which can be changed by using [-o port number]. 
 
 ### Basic server usage:
     udr -d /path/to/files [udr server options] rsync

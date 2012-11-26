@@ -31,6 +31,7 @@ and limitations under the License.
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include "udr_server.h"
 #include "udr_util.h"
 
 using namespace std;
@@ -50,7 +51,7 @@ void *get_in_addr(struct sockaddr *sa)
   return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-int run_as_server(char * dir, char * port, char * udr_program_dest){
+int run_as_server(UDR_Options * udr_options){
   int backlog = 10;
     int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
     struct addrinfo hints, *servinfo, *p;
@@ -68,7 +69,7 @@ int run_as_server(char * dir, char * port, char * udr_program_dest){
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE; // use my IP
 
-    if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
+    if ((rv = getaddrinfo(NULL, udr_options->server_port, &hints, &servinfo)) != 0) {
       syslog (LOG_WARNING, "getaddrinfo: %s\n", gai_strerror(rv));
       return 1;
     }
@@ -115,10 +116,10 @@ if (p == NULL)  {
       exit(1);
     }
 
-    syslog (LOG_NOTICE, "started on port %s, serving files from %s, waiting for connections...\n", port, dir);
+    syslog (LOG_NOTICE, "started on port %s, serving files from %s, waiting for connections...\n", udr_options->server_port, udr_options->server_dir);
 
     //daemonize here?
-    daemon(1, 0);
+    //daemon(1, 0);
 
     while(1) {  // main accept() loop
       sin_size = sizeof their_addr;
@@ -154,18 +155,20 @@ if (p == NULL)  {
             char * udr_program_client = tok;
 
             //Need to deal with this better
-            char ** udr_argv = (char**) malloc(sizeof(char *) * num_args+2); 
+            char ** udr_argv = (char**) malloc(sizeof(char *) * num_args+3); 
             int idx = 0;
-            udr_argv[idx++] = udr_program_dest;
+            udr_argv[idx++] = udr_options->udr_program_dest;
             udr_argv[idx++] = "-d";
-            udr_argv[idx++] = dir;
+            udr_argv[idx++] = udr_options->server_dir;
             do{
               tok = strtok(NULL, " ");
               udr_argv[idx++] = tok;
             } while(tok != NULL);
 
+            udr_argv[idx] = NULL;
+
             int parent_to_child, child_to_parent;
-            fork_execvp(udr_program_dest, udr_argv, &parent_to_child, &child_to_parent);
+            fork_execvp(udr_options->udr_program_dest, udr_argv, &parent_to_child, &child_to_parent);
 
             //at this point this process should wait for the udr process to end
             char udr_out_buf[buf_size];

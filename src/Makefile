@@ -48,7 +48,7 @@ version.h:
 %.o: %.cpp 
 	$(C++) $(CCFLAGS) $< -c
 
-udr: udr.o udr_threads.o udr_server.o udr_util.o
+udr: udr.o udr_threads.o udr_server.o udr_util.o udr_options.o
 	$(C++) $^ -o $@ $(LDFLAGS)
 
 clean:

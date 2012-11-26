@@ -20,6 +20,7 @@ and limitations under the License.
 #define UDR_THREADS_H
 
 #include "crypto.h"
+#include "udr_options.h"
 
 const int max_block_size = 64*1024; //what should this be? maybe based on UDT buffer size?
  
@@ -36,7 +37,7 @@ struct thread_data{
 void *handle_to_udt(void *threadarg);
 void *udt_to_handle(void *threadarg);
 
-int run_sender(char* receiver, char* receiver_port, bool encryption, unsigned char * passphrase, bool verbose_mode, const char* cmd, int argc, char ** argv);
-int run_receiver(int start_port, int end_port, const char * rsync_program, bool encryption, bool verbose_mode, bool is_server, char * server_dir);
+int run_sender(char* receiver, UDR_Options * udr_options, unsigned char * passphrase, const char* cmd, int argc, char ** argv);
+int run_receiver(UDR_Options * udr_options);
 
 #endif
