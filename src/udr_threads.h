@@ -37,7 +37,7 @@ struct thread_data{
 void *handle_to_udt(void *threadarg);
 void *udt_to_handle(void *threadarg);
 
-int run_sender(char* receiver, UDR_Options * udr_options, unsigned char * passphrase, const char* cmd, int argc, char ** argv);
+int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char* cmd, int argc, char ** argv);
 int run_receiver(UDR_Options * udr_options);
 
 #endif

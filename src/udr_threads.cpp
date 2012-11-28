@@ -207,7 +207,7 @@ void *udt_to_handle(void *threadarg) {
 } 
 
 
-int run_sender(char* receiver, UDR_Options * udr_options, unsigned char * passphrase, const char* cmd, int argc, char ** argv) { 
+int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char* cmd, int argc, char ** argv) { 
   UDT::startup();
   struct addrinfo hints, *local, *peer;
 
@@ -226,8 +226,8 @@ int run_sender(char* receiver, UDR_Options * udr_options, unsigned char * passph
   
   freeaddrinfo(local);
 
-  if (0 != getaddrinfo(receiver, udr_options->port_num, &hints, &peer)) {
-    cerr << "Sender: incorrect server/peer address. " << receiver << ":" << udr_options->port_num << endl;
+  if (0 != getaddrinfo(udr_options->host, udr_options->port_num, &hints, &peer)) {
+    cerr << "Sender: incorrect server/peer address. " << udr_options->host << ":" << udr_options->port_num << endl;
     return 1;
   }
 
@@ -399,7 +399,8 @@ int run_receiver(UDR_Options * udr_options) {
   vector<char*> args;
   vector<char*> files;
   glob_t globbuf;
-
+  
+  
   char *p = strtok( strdup(cmd_str.c_str()) , " " );
   while (p) {
     if(strcmp(p, sender_flag) == 0)
@@ -469,12 +470,33 @@ int run_receiver(UDR_Options * udr_options) {
     }
   }
 
-  args.push_back(NULL);
+//  args.push_back(NULL);
+  
+  int rsync_cmd_len = 0;
+  
+  for(int i = 0; i < args.size(); i++){
+      rsync_cmd_len += (strlen(args[i]) + 1);
+  }
+  
+  char * rsync_cmd = (char *)malloc(rsync_cmd_len);
+  rsync_cmd[0] = '\0';
+  
+  for(int i = 0; i < args.size(); i++){
+      strcat(rsync_cmd, args[i]);
+      strcat(rsync_cmd, " ");
+  }
+  
+  char ** sh_cmd = (char **)malloc(sizeof(char *) * 4);
+  sh_cmd[0] = udr_options->shell_program;
+  sh_cmd[1] = "-c";
+  sh_cmd[2] = rsync_cmd;
+  sh_cmd[3] = NULL;
 
-  //now fork and exec the rsync server
+  //now fork and exec the rsync on the remote side using sh (so that wildcards will be expanded properly) 
   int child_to_parent, parent_to_child;
   
-  int rsync_pid = fork_execvp(udr_options->rsync_program, &args[0], &parent_to_child, &child_to_parent);
+  int rsync_pid = fork_execvp(udr_options->shell_program, sh_cmd, &parent_to_child, &child_to_parent);
+//  int rsync_pid = fork_execvp(udr_options->rsync_program, &args[0], &parent_to_child, &child_to_parent);
 
   if(udr_options->verbose)
     fprintf(stderr, "Receiver: rsync pid: %d\n", rsync_pid);

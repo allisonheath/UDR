@@ -36,10 +36,12 @@ struct UDR_Options{
     char *ssh_program;
     char *rsync_program;
     char *rsync_timeout;
+    char *shell_program;
     
     char *key_base_filename;
     char *key_filename;
     
+    char *host;
     char *port_num;
     char *username;
     const char *which_process;
@@ -53,5 +55,7 @@ void usage();
 
 
 int get_udr_options(UDR_Options * options, int argc, char * argv[], int rsync_arg_idx);
+
+void get_host_username(UDR_Options * udr_options, int argc, char *argv[], int rsync_arg_idx);
 
 #endif

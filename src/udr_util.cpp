@@ -25,13 +25,13 @@ pid_t fork_execvp(const char *program, char* argv[], int * ptc, int * ctp){
 
   int parent_to_child[2], child_to_parent[2];
 
-  //need to figure out best way to do global parameters
-  //char* arg;
-  //int idx = 0;
-  //while((arg = argv[idx]) != NULL){
-  //  fprintf(stderr, "%s arg[%d]: %s\n", program, idx, arg);
-  //  idx++;
-  //}
+  //for debugging...
+//  char* arg;
+//  int idx = 0;
+//  while((arg = argv[idx]) != NULL){
+//    fprintf(stderr, "%s arg[%d]: %s\n", program, idx, arg);
+//    idx++;
+//  }
 
   if(pipe(parent_to_child) != 0 || pipe(child_to_parent) != 0){
     perror("Pipe cannot be created");
@@ -63,4 +63,9 @@ pid_t fork_execvp(const char *program, char* argv[], int * ptc, int * ctp){
     *ctp = child_to_parent[0];
   }
   return pid;
+}
+
+void print_error_and_exit(const char * msg, int exit_code){
+    fprintf(stderr, "UDR ERROR: %s\n", msg);
+    exit(exit_code);
 }
