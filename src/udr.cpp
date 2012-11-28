@@ -165,7 +165,7 @@ int main(int argc, char* argv[]) {
         line[0] = '\0';
 
         /* if given double colons then use the server connection -- curr_options.server is incorrect -- need to figure out -- not working right now */
-        if (curr_options.server) {
+        if (curr_options.server_connect) {
             int server_exists = get_server_connection(curr_options.host, curr_options.server_port, udr_cmd, line, line_size);
             if (!server_exists) {
                 fprintf(stderr, "UDR ERROR: Cannot connect to server at %s:%s\n", curr_options.host, curr_options.server_port);

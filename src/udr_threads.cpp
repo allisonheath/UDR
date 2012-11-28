@@ -77,8 +77,6 @@ string udt_recv_string( int udt_handle ) {
   return str;
 }
 
-//Something bad is happening with the threading / signaling to interrupt the blocking read here, get stack smashing if try to handle gracefully
-//Just let the spurious rsync error occur for now
 void *handle_to_udt(void *threadarg) {
   struct thread_data *my_args = (struct thread_data *) threadarg;
   char indata[max_block_size];
@@ -386,7 +384,7 @@ int run_receiver(UDR_Options * udr_options) {
   char clientservice[NI_MAXSERV];
   getnameinfo((sockaddr *)&clientaddr, addrlen, clienthost, sizeof(clienthost), clientservice, sizeof(clientservice), NI_NUMERICHOST|NI_NUMERICSERV);
 
-
+  
   //If in server mode, need to check that --sender is a option (read-only) and change the directory to be in the directory that is being served up.
   const char * sender_flag = "--sender";
   bool seen_sender = false;
@@ -395,96 +393,25 @@ int run_receiver(UDR_Options * udr_options) {
   bool called_glob = false;
 
   string cmd_str = udt_recv_string(recver);
-
-  vector<char*> args;
-  vector<char*> files;
-  glob_t globbuf;
+  const char * cmd = cmd_str.c_str();
   
-  
-  char *p = strtok( strdup(cmd_str.c_str()) , " " );
-  while (p) {
-    if(strcmp(p, sender_flag) == 0)
-      seen_sender = true;
-
-    if(after_dot){
-      fprintf(stderr, "globbing: %s\n", p);
-      glob(p, GLOB_DOOFFS | GLOB_NOCHECK, NULL, &globbuf);
-      fprintf(stderr, "glob count: %d\n", globbuf.gl_pathc);
-      for(int i = 0; i < globbuf.gl_pathc; i++)
-        files.push_back(globbuf.gl_pathv[i]);
-    }
-    else{
-      args.push_back( p );
-
-      if(strcmp(p, ".") == 0){
-        //after_dot = true;
-        file_idx = args.size();
-      }
-    }
-
-    p = strtok( NULL , " " );
+  //perhaps want to at least check that starts with rsync?
+  if(strncmp(cmd, "rsync ", 5) != 0){
+      const char * error_msg = "UDR ERROR: non-rsync command detected\n";
+      exit(1);
   }
-
-  //need to send back to the client.
-  if(udr_options->server && !seen_sender){
-    const char * error_msg = "server mode is read-only\n";
-    //maybe log to server log -- can't send back because rsync doesn't expect and gives the is your shell clean error
-    exit(1);
-  }
-
-  /*the last arguments is the requested files
-  if we're in server mode, append the give path, 
-  make it into a real path and then check that it's still in the correct directory (to protect against relative pathing out */
+ 
+  // If we're in server mode need to handle the pathing issues.
   if(udr_options->server){
-    char path[PATH_MAX+1];
-    char real_path[PATH_MAX+1];
-
-    for(int i = 0; i < files.size(); i ++){
-      char * recv_path = files[i];
-      strcpy(path, udr_options->server_dir);
-      strcat(path, "/");
-      strcat(path, recv_path);
-      realpath(path, real_path);
-      openlog("udr", LOG_PID , LOG_DAEMON);
-
-      //check that still starts with the server_dir
-      if(strncmp(udr_options->server_dir, real_path, strlen(udr_options->server_dir)) != 0){
-        //if it doesn't just return the server_dir
-        strcpy(real_path, udr_options->server_dir);
+      if(!seen_sender){
+           const char * error_msg = "UDR ERROR: server mode is read-only\n";
+           //maybe log to server log -- can't send back because rsync doesn't expect and gives the is your shell clean error
+           exit(1);
       }
-
-      //make sure we get the trailing slash right
-      if(recv_path[strlen(recv_path)-1] == '/' || recv_path[strlen(recv_path)-1] == '.'){
-        strcat(real_path, "/");
-      }
-
-      //otherwise remove the path provided and replace it with the new path
-      //fprintf(stderr, "path sent to server process: %s\n", real_path);
-      args.push_back(real_path);
-      syslog(LOG_INFO, "connection %s requesting %s\n", clienthost, real_path);
-    }
-  }
-  else{
-    for(int i = 0; i < files.size(); i++){
-      args.push_back(files[i]);
-    }
-  }
-
-//  args.push_back(NULL);
-  
-  int rsync_cmd_len = 0;
-  
-  for(int i = 0; i < args.size(); i++){
-      rsync_cmd_len += (strlen(args[i]) + 1);
   }
   
-  char * rsync_cmd = (char *)malloc(rsync_cmd_len);
-  rsync_cmd[0] = '\0';
-  
-  for(int i = 0; i < args.size(); i++){
-      strcat(rsync_cmd, args[i]);
-      strcat(rsync_cmd, " ");
-  }
+  char * rsync_cmd = (char *)malloc(strlen(cmd));
+  strcpy(rsync_cmd, cmd);
   
   char ** sh_cmd = (char **)malloc(sizeof(char *) * 4);
   sh_cmd[0] = udr_options->shell_program;
@@ -496,7 +423,6 @@ int run_receiver(UDR_Options * udr_options) {
   int child_to_parent, parent_to_child;
   
   int rsync_pid = fork_execvp(udr_options->shell_program, sh_cmd, &parent_to_child, &child_to_parent);
-//  int rsync_pid = fork_execvp(udr_options->rsync_program, &args[0], &parent_to_child, &child_to_parent);
 
   if(udr_options->verbose)
     fprintf(stderr, "Receiver: rsync pid: %d\n", rsync_pid);

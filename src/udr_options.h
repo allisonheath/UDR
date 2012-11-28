@@ -30,6 +30,7 @@ struct UDR_Options{
     bool encryption;
     bool server;
     bool version_flag;
+    bool server_connect;
 
     char *udr_program_src;
     char *udr_program_dest;

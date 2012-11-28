@@ -147,7 +147,7 @@ if (p == NULL)  {
 
             buf[numbytes] = '\0';
 
-            //printf("server: numbytes: %d received '%s'\n", numbytes, buf);
+            fprintf(stderr, "server: numbytes: %d received '%s'\n", numbytes, buf);
             //should check that udr command is actually udr command but for now let's just fork_execvp again
             char * tok = strtok (buf," ");
 
@@ -155,7 +155,7 @@ if (p == NULL)  {
             char * udr_program_client = tok;
 
             //Need to deal with this better
-            char ** udr_argv = (char**) malloc(sizeof(char *) * num_args+3); 
+            char ** udr_argv = (char**) malloc(sizeof(char *) * (num_args+4)); 
             int idx = 0;
             udr_argv[idx++] = udr_options->udr_program_dest;
             udr_argv[idx++] = "-d";
@@ -188,7 +188,7 @@ if (p == NULL)  {
       return 0;
     }
 
-    int get_server_connection(char * host, char * port, char * udr_cmd, char * line, int line_size){
+int get_server_connection(char * host, char * port, char * udr_cmd, char * line, int line_size){
    //first check to see udr server is running.... 
 
       int sockfd, numbytes;

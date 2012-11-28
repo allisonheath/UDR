@@ -45,6 +45,7 @@ void set_default_udr_options(UDR_Options * options) {
     options->encryption = false;
     options->server = false;
     options->version_flag = false;
+    options->server_connect = false;
 
     options->udr_program_src = (char*) malloc(PATH_MAX);
     options->udr_program_dest = "udr";
@@ -183,15 +184,25 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 }
 
 //gah. 
-void parse_host_username(char * source, char * username, char * host){
+void parse_host_username(char * source, char * username, char * host, bool * double_colon){
     char * colon_loc = strchr(source, ':');
     char * at_loc = strchr(source, '@');
     int username_len, host_len;
     username_len = host_len = 0;
     
     if(colon_loc == NULL){
-//        fprintf(stderr, "colon_loc is null\n");
         return;
+    }
+    
+    if(colon_loc[1] == ':'){
+        *double_colon = true;
+        //going to get rid of the double colon -- this may be a terrible idea
+        char * source_cpy = (char *) malloc(strlen(source)+1);
+        strncpy(source_cpy, source, colon_loc - source + 1);
+        strcat(source_cpy, colon_loc + 2);
+        fprintf(stderr, "source_cpy: %s\n", source_cpy);
+        strcpy(source, source_cpy);
+        free(source_cpy);
     }
     
     //probably should check lengths here?
@@ -240,16 +251,19 @@ void get_host_username(UDR_Options * udr_options, int argc, char *argv[], int rs
     //destination is always the last one
     char dest_username[PATH_MAX];
     char dest_host[PATH_MAX];
+    bool dest_double_colon = false;
     dest_username[0] = '\0';
     dest_host[0] = '\0';
     
     char next_src_username[PATH_MAX];
     char next_src_host[PATH_MAX];
+    bool next_src_double_colon = false;
     next_src_username[0] = '\0';
     next_src_host[0] = '\0';
     
     char src_username[PATH_MAX];
     char src_host[PATH_MAX];
+    bool src_double_colon = false;
     src_username[0] = '\0';
     src_host[0] = '\0';
     
@@ -268,11 +282,11 @@ void get_host_username(UDR_Options * udr_options, int argc, char *argv[], int rs
 //            fprintf(stderr, "parsing: %s\n", argv[i]);
 //            fprintf(stderr, "src username: %s\n", src_username );
 //            fprintf(stderr, "src host: %s\n", src_host);
-            parse_host_username(argv[i], next_src_username, next_src_host);
+            parse_host_username(argv[i], next_src_username, next_src_host, &next_src_double_colon);
 //            fprintf(stderr, "next src username: %s\n", next_src_username );
 //            fprintf(stderr, "next src host: %s\n", next_src_host);
             if(src_num != 0){
-                if(strcmp(src_username,next_src_username) != 0 || strcmp(src_host,next_src_host) != 0){
+                if(strcmp(src_username,next_src_username) != 0 || strcmp(src_host,next_src_host) != 0 || src_double_colon != next_src_double_colon){
                     //have a problem
                     fprintf(stderr, "UDR ERROR: source must use the same host and username\n");
                     exit(-1);
@@ -280,8 +294,10 @@ void get_host_username(UDR_Options * udr_options, int argc, char *argv[], int rs
             }
             strcpy(src_username, next_src_username);
             strcpy(src_host, next_src_host);
+            src_double_colon = next_src_double_colon;
             next_src_username[0] = '\0';
             next_src_host[0] = '\0';
+            next_src_double_colon = false;
             src_num++;
         }
     }
@@ -294,7 +310,7 @@ void get_host_username(UDR_Options * udr_options, int argc, char *argv[], int rs
     }
     
 //    fprintf(stderr, "dest: %s\n", dest);
-    parse_host_username(dest, dest_username, dest_host);
+    parse_host_username(dest, dest_username, dest_host, &dest_double_colon);
     
 //    fprintf(stderr, "dest_username: %s dest_host: %s\n", dest_username, dest_host);
     
@@ -312,15 +328,12 @@ void get_host_username(UDR_Options * udr_options, int argc, char *argv[], int rs
     if(src_remote){
         strcpy(udr_options->host, src_host);
         strcpy(udr_options->username, src_username);
+        udr_options->server_connect = src_double_colon;        
     }
     else{
         strcpy(udr_options->host, dest_host);
         strcpy(udr_options->username, dest_username);
+        udr_options->server_connect = dest_double_colon;
     }
     
-//    fprintf(stderr, "udr_options: host: %s username: %s\n", udr_options->host, udr_options->username);
-    
 } 
-
-//What do we need for this?
-//return the rsync options
