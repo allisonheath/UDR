@@ -14,7 +14,7 @@ software distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
 See the License for the specific language governing permissions 
 and limitations under the License.
- **********************[*******************************************************/
+**********************[*******************************************************/
 
 #include <unistd.h>
 #include <cstdlib>
@@ -96,68 +96,68 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 
     while ((ch = getopt_long(rsync_arg_idx, argv, "tlnva:b:d:s:h:p:c:k:o:", long_options, &option_index)) != -1)
         switch (ch) {
-            case 'a':
-                udr_options->start_port = atoi(optarg);
-                break;
-            case 'b':
-                udr_options->end_port = atoi(optarg);
-                break;
-            case 't':
-                udr_options->tflag = 1;
-                break;
-            case 'd':
-                udr_options->server = true;
-                udr_options->server_dir = new char[PATH_MAX + 1];
-                realpath(optarg, udr_options->server_dir);
+	case 'a':
+	    udr_options->start_port = atoi(optarg);
+	    break;
+	case 'b':
+	    udr_options->end_port = atoi(optarg);
+	    break;
+	case 't':
+	    udr_options->tflag = 1;
+	    break;
+	case 'd':
+	    udr_options->server = true;
+	    udr_options->server_dir = new char[PATH_MAX + 1];
+	    realpath(optarg, udr_options->server_dir);
 
-                if (udr_options->server_dir == NULL) {
-                    fprintf(stderr, "udr: error: could not resolve path %s\n", optarg);
-                    exit(1);
-                }
-                struct stat st;
-                if (stat(udr_options->server_dir, &st) != 0) {
-                    fprintf(stderr, "udr: error: directory %s is not present\n", udr_options->server_dir);
-                    exit(1);
-                }
+	    if (udr_options->server_dir == NULL) {
+		fprintf(stderr, "udr: error: could not resolve path %s\n", optarg);
+		exit(1);
+	    }
+	    struct stat st;
+	    if (stat(udr_options->server_dir, &st) != 0) {
+		fprintf(stderr, "udr: error: directory %s is not present\n", udr_options->server_dir);
+		exit(1);
+	    }
 
-                if (!S_ISDIR(st.st_mode)) {
-                    fprintf(stderr, "udr: error: %s is not a directory\n", udr_options->server_dir);
-                    exit(1);
-                }
+	    if (!S_ISDIR(st.st_mode)) {
+		fprintf(stderr, "udr: error: %s is not a directory\n", udr_options->server_dir);
+		exit(1);
+	    }
 
-                break;
-            case 'n':
-                udr_options->encryption = true;
-                break;
-            case 's':
-                udr_options->sflag = 1;
-                udr_options->port_num = optarg;
-                break;
-            case 'l':
-                udr_options->username = optarg;
-                break;
-            case 'p':
-                udr_options->key_filename = optarg;
-                break;
-            case 'c':
-                udr_options->udr_program_dest = optarg;
-                break;
-            case 'k':
-                key_dir = optarg;
-                break;
-            case 'v':
-                udr_options->verbose = true;
-                break;
-            case 'o':
-                udr_options->server_port = optarg;
-            case 0:
-                if (strcmp("version", long_options[option_index].name) == 0) {
-                    udr_options->version_flag = true;
-                }
-                break;
-            default:
-                fprintf(stderr, "Illegal argument: %c\n", ch);
-                usage();
+	    break;
+	case 'n':
+	    udr_options->encryption = true;
+	    break;
+	case 's':
+	    udr_options->sflag = 1;
+	    udr_options->port_num = optarg;
+	    break;
+	case 'l':
+	    udr_options->username = optarg;
+	    break;
+	case 'p':
+	    udr_options->key_filename = optarg;
+	    break;
+	case 'c':
+	    udr_options->udr_program_dest = optarg;
+	    break;
+	case 'k':
+	    key_dir = optarg;
+	    break;
+	case 'v':
+	    udr_options->verbose = true;
+	    break;
+	case 'o':
+	    udr_options->server_port = optarg;
+	case 0:
+	    if (strcmp("version", long_options[option_index].name) == 0) {
+		udr_options->version_flag = true;
+	    }
+	    break;
+	default:
+	    fprintf(stderr, "Illegal argument: %c\n", ch);
+	    usage();
         }
 
     //Finish setting up the key file path

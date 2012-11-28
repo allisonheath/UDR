@@ -36,459 +36,459 @@ bool thread_log = false;
 string local_logfile_dir = "/home/aheath/projects/udr/log/thread_";
 
 void print_bytes(FILE* file, const void *object, size_t size) {
-  size_t i;
+    size_t i;
 
-  fprintf(file, "[ ");
+    fprintf(file, "[ ");
     for(i = 0; i < size; i++)
     {
-      fprintf(file, "%02x ", ((const unsigned char *) object)[i] & 0xff);
+	fprintf(file, "%02x ", ((const unsigned char *) object)[i] & 0xff);
     }
     fprintf(file, "]\n");
-  }
+}
 
 string convert_int(int number) {
-  stringstream ss;
-  ss << number;
-  return ss.str();
+    stringstream ss;
+    ss << number;
+    return ss.str();
 }
 
 //perhaps want a timeout here now with server mode?
 string udt_recv_string( int udt_handle ) {
-  char buf[ 2 ];
-  buf[ 1 ] = '\0';
+    char buf[ 2 ];
+    buf[ 1 ] = '\0';
   
-  string str = "";
+    string str = "";
   
-  for( ;; ) {
-    int bytes_read = UDT::recv( udt_handle , buf , 1 , 0 );
-    if ( bytes_read == UDT::ERROR ){
-      cerr << "recv:" << UDT::getlasterror().getErrorMessage() << endl;
-      break;
+    for( ;; ) {
+	int bytes_read = UDT::recv( udt_handle , buf , 1 , 0 );
+	if ( bytes_read == UDT::ERROR ){
+	    cerr << "recv:" << UDT::getlasterror().getErrorMessage() << endl;
+	    break;
+	}
+	if ( bytes_read == 1 ) {
+	    if ( buf[ 0 ] == '\0' )
+		break;
+	    str += buf;
+	} 
+	else {
+	    sleep(1);
+	}
     }
-    if ( bytes_read == 1 ) {
-      if ( buf[ 0 ] == '\0' )
-        break;
-      str += buf;
-    } 
-    else {
-      sleep(1);
-    }
-  }
-  return str;
+    return str;
 }
 
 void *handle_to_udt(void *threadarg) {
-  struct thread_data *my_args = (struct thread_data *) threadarg;
-  char indata[max_block_size];
-  char outdata[max_block_size];
-  FILE*  logfile;
-
-  if(my_args->log) {
-    string filename = my_args->logfile_dir + convert_int(my_args->id) + "_log.txt";
-    logfile = fopen(filename.c_str(), "w");
-  }
-
-  while(true) {
-    int ss;
+    struct thread_data *my_args = (struct thread_data *) threadarg;
+    char indata[max_block_size];
+    char outdata[max_block_size];
+    FILE*  logfile;
 
     if(my_args->log) {
-      fprintf(logfile, "%d: Should be reading from process...\n", my_args->id);
-      fflush(logfile);
+	string filename = my_args->logfile_dir + convert_int(my_args->id) + "_log.txt";
+	logfile = fopen(filename.c_str(), "w");
     }
 
-    int bytes_read;
-    if(my_args->crypt != NULL)
-      bytes_read = read(my_args->fd, indata, max_block_size);
-    else
-      bytes_read = read(my_args->fd, outdata, max_block_size);
+    while(true) {
+	int ss;
 
-    if(bytes_read < 0){
-      if(my_args->log){
-        fprintf(logfile, "Error: %s\n", strerror(errno));
-        fclose(logfile);
-      }
-      my_args->is_complete = true;
-      return NULL;
+	if(my_args->log) {
+	    fprintf(logfile, "%d: Should be reading from process...\n", my_args->id);
+	    fflush(logfile);
+	}
+
+	int bytes_read;
+	if(my_args->crypt != NULL)
+	    bytes_read = read(my_args->fd, indata, max_block_size);
+	else
+	    bytes_read = read(my_args->fd, outdata, max_block_size);
+
+	if(bytes_read < 0){
+	    if(my_args->log){
+		fprintf(logfile, "Error: %s\n", strerror(errno));
+		fclose(logfile);
+	    }
+	    my_args->is_complete = true;
+	    return NULL;
+	}
+	if(bytes_read == 0) {
+	    if(my_args->log){
+		fprintf(logfile, "%d Got %d bytes_read, exiting\n", my_args->id, bytes_read);
+		fclose(logfile);
+	    }
+	    my_args->is_complete = true;
+	    return NULL;
+	}
+
+	if(my_args->crypt != NULL)
+	    my_args->crypt->encrypt(indata, outdata, bytes_read);
+
+	if(my_args->log){
+	    fprintf(logfile, "%d bytes_read: %d\n", my_args->id, bytes_read);
+	    // print_bytes(logfile, outdata, bytes_read);
+	    fflush(logfile);
+	}
+
+	int ssize = 0;
+	while(ssize < bytes_read) {
+	    if (UDT::ERROR == (ss = UDT::send(*my_args->udt_socket, outdata + ssize, bytes_read - ssize, 0))) {
+
+		if(my_args->log) {
+		    fprintf(logfile, "%d send error: %s\n", my_args->id, UDT::getlasterror().getErrorMessage());
+		    fclose(logfile);
+		}
+		my_args->is_complete = true;
+		return NULL;
+	    }
+
+	    ssize += ss;
+	    if(my_args->log) {
+		fprintf(logfile, "%d sender on socket %d bytes read: %d ssize: %d\n", my_args->id, *my_args->udt_socket, bytes_read, ssize);
+		fflush(logfile);
+	    }
+	}
     }
-    if(bytes_read == 0) {
-      if(my_args->log){
-        fprintf(logfile, "%d Got %d bytes_read, exiting\n", my_args->id, bytes_read);
-        fclose(logfile);
-      }
-      my_args->is_complete = true;
-      return NULL;
-    }
-
-    if(my_args->crypt != NULL)
-      my_args->crypt->encrypt(indata, outdata, bytes_read);
-
-    if(my_args->log){
-      fprintf(logfile, "%d bytes_read: %d\n", my_args->id, bytes_read);
-      // print_bytes(logfile, outdata, bytes_read);
-      fflush(logfile);
-    }
-
-    int ssize = 0;
-    while(ssize < bytes_read) {
-    	if (UDT::ERROR == (ss = UDT::send(*my_args->udt_socket, outdata + ssize, bytes_read - ssize, 0))) {
-
-        if(my_args->log) {
-          fprintf(logfile, "%d send error: %s\n", my_args->id, UDT::getlasterror().getErrorMessage());
-          fclose(logfile);
-        }
-        my_args->is_complete = true;
-        return NULL;
-      }
-
-      ssize += ss;
-      if(my_args->log) {
-        fprintf(logfile, "%d sender on socket %d bytes read: %d ssize: %d\n", my_args->id, *my_args->udt_socket, bytes_read, ssize);
-        fflush(logfile);
-      }
-    }
-  }
-  my_args->is_complete = true;
+    my_args->is_complete = true;
 }
 
 void *udt_to_handle(void *threadarg) {
-  struct thread_data *my_args = (struct thread_data *) threadarg;
-  char indata[max_block_size];
-  char outdata[max_block_size];
-  FILE* logfile;
+    struct thread_data *my_args = (struct thread_data *) threadarg;
+    char indata[max_block_size];
+    char outdata[max_block_size];
+    FILE* logfile;
   
-  if(my_args->log) {
-    string filename = my_args->logfile_dir + convert_int(my_args->id) + "_log.txt";
-    logfile = fopen(filename.c_str(), "w");
-  }
-
-  while(true) {
-    int rs;
-
     if(my_args->log) {
-      fprintf(logfile, "%d: Should now be receiving from udt...\n", my_args->id);
-      fflush(logfile);
+	string filename = my_args->logfile_dir + convert_int(my_args->id) + "_log.txt";
+	logfile = fopen(filename.c_str(), "w");
     }
 
-    if (UDT::ERROR == (rs = UDT::recv(*my_args->udt_socket, indata, max_block_size, 0))) {
-      if(my_args->log){
-        fprintf(logfile, "%d recv error: %s\n", my_args->id, UDT::getlasterror().getErrorMessage());
-        fclose(logfile);
-      }
-      my_args->is_complete = true;
-      return NULL;
-    }
+    while(true) {
+	int rs;
 
-    int written_bytes;
-    if(my_args->crypt != NULL) {
-      my_args->crypt->encrypt(indata, outdata, rs);
-      written_bytes = write(my_args->fd, outdata, rs);
-    }
-    else {
-      written_bytes = write(my_args->fd, indata, rs);
-    }
+	if(my_args->log) {
+	    fprintf(logfile, "%d: Should now be receiving from udt...\n", my_args->id);
+	    fflush(logfile);
+	}
 
-    if(my_args->log) {
-      fprintf(logfile, "%d recv on socket %d rs: %d written bytes: %d\n", my_args->id, *my_args->udt_socket, rs, written_bytes);
-      fflush(logfile);
-    }
+	if (UDT::ERROR == (rs = UDT::recv(*my_args->udt_socket, indata, max_block_size, 0))) {
+	    if(my_args->log){
+		fprintf(logfile, "%d recv error: %s\n", my_args->id, UDT::getlasterror().getErrorMessage());
+		fclose(logfile);
+	    }
+	    my_args->is_complete = true;
+	    return NULL;
+	}
 
-    if(written_bytes < 0) {
-      if(my_args->log){
-        fprintf(logfile, "Error: %s\n", strerror(errno));
-        fclose(logfile);
-      }
-      my_args->is_complete = true;
-      return NULL;
+	int written_bytes;
+	if(my_args->crypt != NULL) {
+	    my_args->crypt->encrypt(indata, outdata, rs);
+	    written_bytes = write(my_args->fd, outdata, rs);
+	}
+	else {
+	    written_bytes = write(my_args->fd, indata, rs);
+	}
+
+	if(my_args->log) {
+	    fprintf(logfile, "%d recv on socket %d rs: %d written bytes: %d\n", my_args->id, *my_args->udt_socket, rs, written_bytes);
+	    fflush(logfile);
+	}
+
+	if(written_bytes < 0) {
+	    if(my_args->log){
+		fprintf(logfile, "Error: %s\n", strerror(errno));
+		fclose(logfile);
+	    }
+	    my_args->is_complete = true;
+	    return NULL;
+	}
     }
-  }
-  my_args->is_complete = true;
+    my_args->is_complete = true;
 } 
 
 
 int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char* cmd, int argc, char ** argv) { 
-  UDT::startup();
-  struct addrinfo hints, *local, *peer;
+    UDT::startup();
+    struct addrinfo hints, *local, *peer;
 
-  memset(&hints, 0, sizeof(struct addrinfo));
+    memset(&hints, 0, sizeof(struct addrinfo));
 
-  hints.ai_flags = AI_PASSIVE;
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
 
-  if (0 != getaddrinfo(NULL, udr_options->port_num, &hints, &local)) {
-    cerr << "Sender: incorrect network address.\n" << endl;
-    return 1;
-  }
-
-  UDTSOCKET client = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
-  
-  freeaddrinfo(local);
-
-  if (0 != getaddrinfo(udr_options->host, udr_options->port_num, &hints, &peer)) {
-    cerr << "Sender: incorrect server/peer address. " << udr_options->host << ":" << udr_options->port_num << endl;
-    return 1;
-  }
-
-  if (UDT::ERROR == UDT::connect(client, peer->ai_addr, peer->ai_addrlen)) {
-    cerr << "Sender: connect: " << UDT::getlasterror().getErrorMessage() << endl;
-    return 1;
-  }
-
-  freeaddrinfo(peer);
-
-  // not using CC method yet
-  //CUDPBlast* cchandle = NULL;
-  int value;
-  int temp;
-  
-  char* data = new char[max_block_size];
-
-  ssize_t n;
-
-  //very first thing we send is the rsync argument so that the rsync server can be started and piped to from the UDT connection
-  n = strlen(cmd) + 1;
-  int ssize = 0;
-  int ss;
-  while(ssize < n) {
-    if (UDT::ERROR == (ss = UDT::send(client, cmd + ssize, n - ssize, 0)))
-    {
-      cerr << "Sender: Send:" << UDT::getlasterror().getErrorMessage() << endl;
-      break;
+    if (0 != getaddrinfo(NULL, udr_options->port_num, &hints, &local)) {
+	cerr << "Sender: incorrect network address.\n" << endl;
+	return 1;
     }
 
-    ssize += ss;
-  }
-
-  struct thread_data sender_to_udt;
-  sender_to_udt.udt_socket = &client;
-  sender_to_udt.fd = STDIN_FILENO; //stdin of this process, from stdout of rsync
-  sender_to_udt.id = 0;
-  sender_to_udt.log = thread_log;
-  sender_to_udt.logfile_dir = local_logfile_dir;
-  sender_to_udt.is_complete = false;
+    UDTSOCKET client = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
   
-  struct thread_data udt_to_sender;
-  udt_to_sender.udt_socket = &client;
-  udt_to_sender.fd = STDOUT_FILENO; //stdout of this process, going to stdin of rsync, rsync defaults to set this is non-blocking
-  udt_to_sender.id = 1;
-  udt_to_sender.log = thread_log;
-  udt_to_sender.logfile_dir = local_logfile_dir;
-  udt_to_sender.is_complete = false;
+    freeaddrinfo(local);
 
-  if(udr_options->encryption){
-    crypto encrypt(BF_ENCRYPT, PASSPHRASE_SIZE, (unsigned char *) passphrase);
-    crypto decrypt(BF_DECRYPT, PASSPHRASE_SIZE, (unsigned char *) passphrase);
-    // free_key(passphrase);
-    sender_to_udt.crypt = &encrypt;
-    udt_to_sender.crypt = &decrypt;
-  }
-  else{
-    sender_to_udt.crypt = NULL;
-    udt_to_sender.crypt = NULL;
-  }
+    if (0 != getaddrinfo(udr_options->host, udr_options->port_num, &hints, &peer)) {
+	cerr << "Sender: incorrect server/peer address. " << udr_options->host << ":" << udr_options->port_num << endl;
+	return 1;
+    }
+
+    if (UDT::ERROR == UDT::connect(client, peer->ai_addr, peer->ai_addrlen)) {
+	cerr << "Sender: connect: " << UDT::getlasterror().getErrorMessage() << endl;
+	return 1;
+    }
+
+    freeaddrinfo(peer);
+
+    // not using CC method yet
+    //CUDPBlast* cchandle = NULL;
+//  int value;
+//  int temp;
   
-  pthread_t sender_to_udt_thread;
-  pthread_create(&sender_to_udt_thread, NULL, handle_to_udt, (void *)&sender_to_udt);
+    char* data = new char[max_block_size];
 
-  pthread_t udt_to_sender_thread;
-  pthread_create(&udt_to_sender_thread, NULL, udt_to_handle, (void*)&udt_to_sender);   
+    ssize_t n;
 
-  int rc1 = pthread_join(udt_to_sender_thread, NULL);
+    //very first thing we send is the rsync argument so that the rsync server can be started and piped to from the UDT connection
+    n = strlen(cmd) + 1;
+    int ssize = 0;
+    int ss;
+    while(ssize < n) {
+	if (UDT::ERROR == (ss = UDT::send(client, cmd + ssize, n - ssize, 0)))
+	{
+	    cerr << "Sender: Send:" << UDT::getlasterror().getErrorMessage() << endl;
+	    break;
+	}
 
-  if(udr_options->verbose)
-    fprintf(stderr, "Sender: joined on udt_to_sender_thread %d\n", rc1);
+	ssize += ss;
+    }
 
-  UDT::close(client);
-  UDT::cleanup();
+    struct thread_data sender_to_udt;
+    sender_to_udt.udt_socket = &client;
+    sender_to_udt.fd = STDIN_FILENO; //stdin of this process, from stdout of rsync
+    sender_to_udt.id = 0;
+    sender_to_udt.log = thread_log;
+    sender_to_udt.logfile_dir = local_logfile_dir;
+    sender_to_udt.is_complete = false;
+  
+    struct thread_data udt_to_sender;
+    udt_to_sender.udt_socket = &client;
+    udt_to_sender.fd = STDOUT_FILENO; //stdout of this process, going to stdin of rsync, rsync defaults to set this is non-blocking
+    udt_to_sender.id = 1;
+    udt_to_sender.log = thread_log;
+    udt_to_sender.logfile_dir = local_logfile_dir;
+    udt_to_sender.is_complete = false;
 
-  delete [] data;
-  return 0;  
+    if(udr_options->encryption){
+	crypto encrypt(BF_ENCRYPT, PASSPHRASE_SIZE, (unsigned char *) passphrase);
+	crypto decrypt(BF_DECRYPT, PASSPHRASE_SIZE, (unsigned char *) passphrase);
+	// free_key(passphrase);
+	sender_to_udt.crypt = &encrypt;
+	udt_to_sender.crypt = &decrypt;
+    }
+    else{
+	sender_to_udt.crypt = NULL;
+	udt_to_sender.crypt = NULL;
+    }
+  
+    pthread_t sender_to_udt_thread;
+    pthread_create(&sender_to_udt_thread, NULL, handle_to_udt, (void *)&sender_to_udt);
+
+    pthread_t udt_to_sender_thread;
+    pthread_create(&udt_to_sender_thread, NULL, udt_to_handle, (void*)&udt_to_sender);   
+
+    int rc1 = pthread_join(udt_to_sender_thread, NULL);
+
+    if(udr_options->verbose)
+	fprintf(stderr, "Sender: joined on udt_to_sender_thread %d\n", rc1);
+
+    UDT::close(client);
+    UDT::cleanup();
+
+    delete [] data;
+    return 0;  
 }
 
 
 int run_receiver(UDR_Options * udr_options) {
-  //int orig_ppid = getppid();
+    //int orig_ppid = getppid();
 
-  UDT::startup();
+    UDT::startup();
 
-  addrinfo hints;
-  addrinfo* res;
+    addrinfo hints;
+    addrinfo* res;
 
-  memset(&hints, 0, sizeof(struct addrinfo));
+    memset(&hints, 0, sizeof(struct addrinfo));
 
-  hints.ai_flags = AI_PASSIVE;
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
 
-  char receiver_port[NI_MAXSERV];
-  UDTSOCKET serv;
+    char receiver_port[NI_MAXSERV];
+    UDTSOCKET serv;
 
-  bool bad_port = false;
+    bool bad_port = false;
 
-  for(int port_num = udr_options->start_port; port_num < udr_options->end_port; port_num++) {
-    bad_port = false;
-    snprintf(receiver_port, sizeof(receiver_port), "%d", port_num);
+    for(int port_num = udr_options->start_port; port_num < udr_options->end_port; port_num++) {
+	bad_port = false;
+	snprintf(receiver_port, sizeof(receiver_port), "%d", port_num);
     
-    if (0 != getaddrinfo(NULL, receiver_port, &hints, &res)) {
-      bad_port = true;
+	if (0 != getaddrinfo(NULL, receiver_port, &hints, &res)) {
+	    bad_port = true;
+	}
+	else {
+	    serv = UDT::socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+	    if (UDT::ERROR == UDT::bind(serv, res->ai_addr, res->ai_addrlen)) {
+		bad_port = true;
+	    }
+	}
+
+	freeaddrinfo(res);
+
+	if(!bad_port)
+	    break;
     }
-    else {
-      serv = UDT::socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-      if (UDT::ERROR == UDT::bind(serv, res->ai_addr, res->ai_addrlen)) {
-        bad_port = true;
-      }
+
+    if(bad_port){
+	fprintf(stderr, "Receiver: ERROR: could not bind to any port in range %d - %d\n", udr_options->start_port, udr_options->end_port);
+	return 0;
+    }
+  
+    unsigned char rand_pp[PASSPHRASE_SIZE];
+    int success = RAND_bytes((unsigned char *) rand_pp, PASSPHRASE_SIZE);
+
+    //stdout port number and password -- to send back to the client
+    printf("%s ", receiver_port);  
+  
+    for(int i = 0; i < PASSPHRASE_SIZE; i++) {
+	printf("%02x", rand_pp[i]);
+    }
+    printf(" \n");
+    fflush(stdout);
+
+    if(udr_options->verbose)
+	fprintf(stderr, "Receiver: server is ready at port %s\n", receiver_port);
+
+    if (UDT::ERROR == UDT::listen(serv, 10)) {
+	cerr << "Receiver: listen: " << UDT::getlasterror().getErrorMessage() << endl;
+	return 0;
     }
 
-    freeaddrinfo(res);
+    sockaddr_storage clientaddr;
+    int addrlen = sizeof(clientaddr);
 
-    if(!bad_port)
-      break;
-  }
+    UDTSOCKET recver;
 
-  if(bad_port){
-    fprintf(stderr, "Receiver: ERROR: could not bind to any port in range %d - %d\n", udr_options->start_port, udr_options->end_port);
-    return 0;
-  }
-  
-  unsigned char rand_pp[PASSPHRASE_SIZE];
-  int success = RAND_bytes((unsigned char *) rand_pp, PASSPHRASE_SIZE);
+    if (UDT::INVALID_SOCK == (recver = UDT::accept(serv, (sockaddr*)&clientaddr, &addrlen))) {
+	fprintf(stderr, "Receiver: accept: %s\n", UDT::getlasterror().getErrorMessage());
+	return 0;
+    }
 
-  //stdout port number and password -- to send back to the client
-  printf("%s ", receiver_port);  
-  
-  for(int i = 0; i < PASSPHRASE_SIZE; i++) {
-    printf("%02x", rand_pp[i]);
-  }
-  printf(" \n");
-  fflush(stdout);
-
-  if(udr_options->verbose)
-    fprintf(stderr, "Receiver: server is ready at port %s\n", receiver_port);
-
-  if (UDT::ERROR == UDT::listen(serv, 10)) {
-    cerr << "Receiver: listen: " << UDT::getlasterror().getErrorMessage() << endl;
-    return 0;
-  }
-
-  sockaddr_storage clientaddr;
-  int addrlen = sizeof(clientaddr);
-
-  UDTSOCKET recver;
-
-  if (UDT::INVALID_SOCK == (recver = UDT::accept(serv, (sockaddr*)&clientaddr, &addrlen))) {
-    fprintf(stderr, "Receiver: accept: %s\n", UDT::getlasterror().getErrorMessage());
-    return 0;
-  }
-
-  char clienthost[NI_MAXHOST];
-  char clientservice[NI_MAXSERV];
-  getnameinfo((sockaddr *)&clientaddr, addrlen, clienthost, sizeof(clienthost), clientservice, sizeof(clientservice), NI_NUMERICHOST|NI_NUMERICSERV);
+    char clienthost[NI_MAXHOST];
+    char clientservice[NI_MAXSERV];
+    getnameinfo((sockaddr *)&clientaddr, addrlen, clienthost, sizeof(clienthost), clientservice, sizeof(clientservice), NI_NUMERICHOST|NI_NUMERICSERV);
 
   
-  //If in server mode, need to check that --sender is a option (read-only) and change the directory to be in the directory that is being served up.
-  const char * sender_flag = "--sender";
-  bool seen_sender = false;
-  bool after_dot = false;
-  int file_idx = -1;
-  bool called_glob = false;
+    //If in server mode, need to check that --sender is a option (read-only) and change the directory to be in the directory that is being served up.
+//  const char * sender_flag = "--sender";
+    bool seen_sender = false;
+//  bool after_dot = false;
+//  int file_idx = -1;
+//  bool called_glob = false;
 
-  string cmd_str = udt_recv_string(recver);
-  const char * cmd = cmd_str.c_str();
+    string cmd_str = udt_recv_string(recver);
+    const char * cmd = cmd_str.c_str();
   
-  //perhaps want to at least check that starts with rsync?
-  if(strncmp(cmd, "rsync ", 5) != 0){
-      const char * error_msg = "UDR ERROR: non-rsync command detected\n";
-      exit(1);
-  }
+    //perhaps want to at least check that starts with rsync?
+    if(strncmp(cmd, "rsync ", 5) != 0){
+//      const char * error_msg = "UDR ERROR: non-rsync command detected\n";
+	exit(1);
+    }
  
-  // If we're in server mode need to handle the pathing issues.
-  if(udr_options->server){
-      if(!seen_sender){
-           const char * error_msg = "UDR ERROR: server mode is read-only\n";
-           //maybe log to server log -- can't send back because rsync doesn't expect and gives the is your shell clean error
-           exit(1);
-      }
-  }
+    // If we're in server mode need to handle the pathing issues.
+    if(udr_options->server){
+	if(!seen_sender){
+//           const char * error_msg = "UDR ERROR: server mode is read-only\n";
+	    //maybe log to server log -- can't send back because rsync doesn't expect and gives the is your shell clean error
+	    exit(1);
+	}
+    }
   
-  char * rsync_cmd = (char *)malloc(strlen(cmd));
-  strcpy(rsync_cmd, cmd);
+    char * rsync_cmd = (char *)malloc(strlen(cmd));
+    strcpy(rsync_cmd, cmd);
   
-  char ** sh_cmd = (char **)malloc(sizeof(char *) * 4);
-  sh_cmd[0] = udr_options->shell_program;
-  sh_cmd[1] = "-c";
-  sh_cmd[2] = rsync_cmd;
-  sh_cmd[3] = NULL;
+    char ** sh_cmd = (char **)malloc(sizeof(char *) * 4);
+    sh_cmd[0] = udr_options->shell_program;
+    sh_cmd[1] = "-c";
+    sh_cmd[2] = rsync_cmd;
+    sh_cmd[3] = NULL;
 
-  //now fork and exec the rsync on the remote side using sh (so that wildcards will be expanded properly) 
-  int child_to_parent, parent_to_child;
+    //now fork and exec the rsync on the remote side using sh (so that wildcards will be expanded properly) 
+    int child_to_parent, parent_to_child;
   
-  int rsync_pid = fork_execvp(udr_options->shell_program, sh_cmd, &parent_to_child, &child_to_parent);
+    int rsync_pid = fork_execvp(udr_options->shell_program, sh_cmd, &parent_to_child, &child_to_parent);
 
-  if(udr_options->verbose)
-    fprintf(stderr, "Receiver: rsync pid: %d\n", rsync_pid);
+    if(udr_options->verbose)
+	fprintf(stderr, "Receiver: rsync pid: %d\n", rsync_pid);
 
-  struct thread_data recv_to_udt;
-  recv_to_udt.udt_socket = &recver;
-  recv_to_udt.fd = child_to_parent; //stdout of rsync server process
-  recv_to_udt.id = 2;
-  recv_to_udt.log = thread_log;
-  recv_to_udt.logfile_dir = local_logfile_dir;
-  recv_to_udt.is_complete = false;
+    struct thread_data recv_to_udt;
+    recv_to_udt.udt_socket = &recver;
+    recv_to_udt.fd = child_to_parent; //stdout of rsync server process
+    recv_to_udt.id = 2;
+    recv_to_udt.log = thread_log;
+    recv_to_udt.logfile_dir = local_logfile_dir;
+    recv_to_udt.is_complete = false;
 
-  struct thread_data udt_to_recv;
-  udt_to_recv.udt_socket = &recver;
-  udt_to_recv.fd = parent_to_child; //stdin of rsync server process
-  udt_to_recv.id = 3;
-  udt_to_recv.log = thread_log;
-  udt_to_recv.logfile_dir = local_logfile_dir;
-  udt_to_recv.is_complete = false;
+    struct thread_data udt_to_recv;
+    udt_to_recv.udt_socket = &recver;
+    udt_to_recv.fd = parent_to_child; //stdin of rsync server process
+    udt_to_recv.id = 3;
+    udt_to_recv.log = thread_log;
+    udt_to_recv.logfile_dir = local_logfile_dir;
+    udt_to_recv.is_complete = false;
 
-  if(udr_options->encryption){
-    crypto encrypt(BF_ENCRYPT, PASSPHRASE_SIZE, rand_pp);
-    crypto decrypt(BF_DECRYPT, PASSPHRASE_SIZE, rand_pp);
-    recv_to_udt.crypt = &encrypt;
-    udt_to_recv.crypt = &decrypt;
-  }
-  else{
-    recv_to_udt.crypt = NULL;
-    udt_to_recv.crypt = NULL;
-  }
+    if(udr_options->encryption){
+	crypto encrypt(BF_ENCRYPT, PASSPHRASE_SIZE, rand_pp);
+	crypto decrypt(BF_DECRYPT, PASSPHRASE_SIZE, rand_pp);
+	recv_to_udt.crypt = &encrypt;
+	udt_to_recv.crypt = &decrypt;
+    }
+    else{
+	recv_to_udt.crypt = NULL;
+	udt_to_recv.crypt = NULL;
+    }
 
-  pthread_t recv_to_udt_thread;
-  pthread_create(&recv_to_udt_thread, NULL, handle_to_udt, (void *)&recv_to_udt);
+    pthread_t recv_to_udt_thread;
+    pthread_create(&recv_to_udt_thread, NULL, handle_to_udt, (void *)&recv_to_udt);
 
-  pthread_t udt_to_recv_thread;
-  pthread_create(&udt_to_recv_thread, NULL, udt_to_handle, (void*)&udt_to_recv);
+    pthread_t udt_to_recv_thread;
+    pthread_create(&udt_to_recv_thread, NULL, udt_to_handle, (void*)&udt_to_recv);
 
-  if(udr_options->verbose){
-    fprintf(stderr, "Receiver: waiting to join on recv_to_udt_thread\n");
-    fprintf(stderr, "Receiver: ppid %d pid %d\n", getppid(), getpid());
-  }
+    if(udr_options->verbose){
+	fprintf(stderr, "Receiver: waiting to join on recv_to_udt_thread\n");
+	fprintf(stderr, "Receiver: ppid %d pid %d\n", getppid(), getpid());
+    }
 
-  int rc1 = pthread_join(recv_to_udt_thread, NULL);
-  if(udr_options->verbose)
-    fprintf(stderr, "Receiver: Joined recv_to_udt_thread %d\n", rc1);
+    int rc1 = pthread_join(recv_to_udt_thread, NULL);
+    if(udr_options->verbose)
+	fprintf(stderr, "Receiver: Joined recv_to_udt_thread %d\n", rc1);
 
-  UDT::close(recver);
+    UDT::close(recver);
 
-  if(udr_options->verbose)
-    fprintf(stderr, "Receiver: Closed recver\n");
+    if(udr_options->verbose)
+	fprintf(stderr, "Receiver: Closed recver\n");
 
 
-  UDT::close(serv);
+    UDT::close(serv);
 
-  if(udr_options->verbose)
-    fprintf(stderr, "Receiver: Closed serv\n");
+    if(udr_options->verbose)
+	fprintf(stderr, "Receiver: Closed serv\n");
 
-  UDT::cleanup();
+    UDT::cleanup();
 
-  if(udr_options->verbose)
-    fprintf(stderr, "Receiver: UDT cleaned up\n");
+    if(udr_options->verbose)
+	fprintf(stderr, "Receiver: UDT cleaned up\n");
 
-  int rc2 = pthread_join(udt_to_recv_thread, NULL);
+    int rc2 = pthread_join(udt_to_recv_thread, NULL);
   
-  if(udr_options->verbose)
-    fprintf(stderr, "Receiver: Joined udt_to_recv_thread %d Should be closing recver now\n", rc2);
+    if(udr_options->verbose)
+	fprintf(stderr, "Receiver: Joined udt_to_recv_thread %d Should be closing recver now\n", rc2);
 
-  return 1;
+    return 1;
 }

@@ -21,11 +21,11 @@ and limitations under the License.
 #include <cstdio>
 
 pid_t fork_execvp(const char *program, char* argv[], int * ptc, int * ctp){
-  pid_t pid;
+    pid_t pid;
 
-  int parent_to_child[2], child_to_parent[2];
+    int parent_to_child[2], child_to_parent[2];
 
-  //for debugging...
+    //for debugging...
 //  char* arg;
 //  int idx = 0;
 //  while((arg = argv[idx]) != NULL){
@@ -33,36 +33,36 @@ pid_t fork_execvp(const char *program, char* argv[], int * ptc, int * ctp){
 //    idx++;
 //  }
 
-  if(pipe(parent_to_child) != 0 || pipe(child_to_parent) != 0){
-    perror("Pipe cannot be created");
-    exit(1);
-  }
+    if(pipe(parent_to_child) != 0 || pipe(child_to_parent) != 0){
+	perror("Pipe cannot be created");
+	exit(1);
+    }
 
-  pid = fork();
+    pid = fork();
 
-  if(pid == 0){
-    //child
-    close(parent_to_child[1]);
-    dup2(parent_to_child[0], 0);
-    close(child_to_parent[0]);
-    dup2(child_to_parent[1], 1);
+    if(pid == 0){
+	//child
+	close(parent_to_child[1]);
+	dup2(parent_to_child[0], 0);
+	close(child_to_parent[0]);
+	dup2(child_to_parent[1], 1);
 
-    execvp(program, argv);
-    perror(program);
-    exit(1);
-  }
-  else if(pid == -1){
-    fprintf(stderr, "Error starting %s\n", program);
-    exit(1);
-  }
-  else{
-    //parent
-    close(parent_to_child[0]);
-    *ptc = parent_to_child[1];
-    close(child_to_parent[1]);
-    *ctp = child_to_parent[0];
-  }
-  return pid;
+	execvp(program, argv);
+	perror(program);
+	exit(1);
+    }
+    else if(pid == -1){
+	fprintf(stderr, "Error starting %s\n", program);
+	exit(1);
+    }
+    else{
+	//parent
+	close(parent_to_child[0]);
+	*ptc = parent_to_child[1];
+	close(child_to_parent[1]);
+	*ctp = child_to_parent[0];
+    }
+    return pid;
 }
 
 void print_error_and_exit(const char * msg, int exit_code){

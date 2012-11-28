@@ -25,13 +25,13 @@ and limitations under the License.
 const int max_block_size = 64*1024; //what should this be? maybe based on UDT buffer size?
  
 struct thread_data{
-  UDTSOCKET * udt_socket;
-  int fd;
-  int id;
-  crypto * crypt;
-  bool log;
-  string logfile_dir;
-  bool is_complete;
+    UDTSOCKET * udt_socket;
+    int fd;
+    int id;
+    crypto * crypt;
+    bool log;
+    string logfile_dir;
+    bool is_complete;
 };
 
 void *handle_to_udt(void *threadarg);

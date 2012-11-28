@@ -14,7 +14,7 @@ software distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
 See the License for the specific language governing permissions 
 and limitations under the License.
- *****************************************************************************/
+*****************************************************************************/
 
 #include <unistd.h>
 #include <cstdlib>
@@ -65,9 +65,6 @@ int main(int argc, char* argv[]) {
     int use_rsync, rsync_arg_idx;
     use_rsync = 0;
     rsync_arg_idx = -1;
-    
-    bool local_to_remote, remote_to_local;
-    local_to_remote = remote_to_local = false;
 
     if (argc < 1)
         usage();
@@ -155,10 +152,10 @@ int main(int argc, char* argv[]) {
             fprintf(stderr, "%s run_sender done\n", curr_options.which_process);
     } 
     else {
-       char * udr_cmd = get_udr_cmd(&curr_options);
+	char * udr_cmd = get_udr_cmd(&curr_options);
        
-       //get the host and username first 
-       get_host_username(&curr_options, argc, argv, rsync_arg_idx);
+	//get the host and username first 
+	get_host_username(&curr_options, argc, argv, rsync_arg_idx);
        
         int line_size = NI_MAXSERV + PASSPHRASE_SIZE * 2 + 1;
         char * line = (char*) malloc(line_size);
