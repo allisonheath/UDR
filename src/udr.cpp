@@ -128,7 +128,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        curr_options.host = argv[rsync_arg_idx - 1];
+        snprintf(curr_options.host, PATH_MAX, "%s", argv[rsync_arg_idx - 1]);
 
         if (curr_options.verbose)
             fprintf(stderr, "%s Host: %s\n", curr_options.which_process, curr_options.host);
@@ -220,7 +220,8 @@ int main(int argc, char* argv[]) {
             exit(1);
         }
 
-        curr_options.port_num = strtok(line, " ");
+        snprintf(curr_options.port_num, PATH_MAX, "%s", strtok(line, " "));
+        
         char * hex_pp = strtok(NULL, " ");
 
         if (curr_options.verbose) {
@@ -253,7 +254,8 @@ int main(int argc, char* argv[]) {
         rsync_argv = (char**) malloc(sizeof (char *) * rsync_argc);
     
         int rsync_idx = 0;
-        rsync_argv[rsync_idx] = (char*) malloc(strlen(argv[0]) + 1);
+        rsync_argv[rsync_idx] = (char*) malloc(strlen(argv[rsync_arg_idx]) + 1);
+        //ok because just malloc'd based on it
         strcpy(rsync_argv[rsync_idx], argv[rsync_arg_idx]);
         rsync_idx++;
         
@@ -263,7 +265,7 @@ int main(int argc, char* argv[]) {
 
         rsync_argv[rsync_idx++] = "-e";
 
-        char udr_rsync_args1[20];
+        char udr_rsync_args1[100];
 
         if (curr_options.encryption)
             strcpy(udr_rsync_args1, "-n ");

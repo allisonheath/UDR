@@ -19,6 +19,7 @@ and limitations under the License.
 #include <unistd.h>
 #include <cstdlib>
 #include <cstdio>
+#include <stdarg.h>
 
 pid_t fork_execvp(const char *program, char* argv[], int * ptc, int * ctp){
     pid_t pid;
@@ -63,9 +64,4 @@ pid_t fork_execvp(const char *program, char* argv[], int * ptc, int * ctp){
 	*ctp = child_to_parent[0];
     }
     return pid;
-}
-
-void print_error_and_exit(const char * msg, int exit_code){
-    fprintf(stderr, "UDR ERROR: %s\n", msg);
-    exit(exit_code);
 }

@@ -18,6 +18,9 @@ and limitations under the License.
 
 #ifndef UDR_OPTIONS_H
 #define UDR_OPTIONS_H
+#include <string>
+#include <netdb.h>
+#include <limits.h>
 
 struct UDR_Options{
     int start_port;
@@ -32,28 +35,27 @@ struct UDR_Options{
     bool version_flag;
     bool server_connect;
 
-    char *udr_program_src;
-    char *udr_program_dest;
-    char *ssh_program;
-    char *rsync_program;
-    char *rsync_timeout;
-    char *shell_program;
+    char udr_program_src[PATH_MAX+1];
+    char udr_program_dest[PATH_MAX+1];
+    char ssh_program[PATH_MAX+1];
+    char rsync_program[PATH_MAX+1];
+    char rsync_timeout[PATH_MAX+1]; 
+    char shell_program[PATH_MAX+1];
     
-    char *key_base_filename;
-    char *key_filename;
+    char key_base_filename[PATH_MAX+1];
+    char key_filename[PATH_MAX+1];
     
-    char *host;
-    char *port_num;
-    char *username;
-    const char *which_process;
-    char *version;
-    char *server_dir;
-    char *server_port;
+    char host[PATH_MAX+1];
+    char port_num[NI_MAXSERV+1];
+    char username[PATH_MAX+1];
+    char which_process[PATH_MAX+1];
+    char version[PATH_MAX+1];
+    char server_dir[PATH_MAX+1];
+    char server_port[NI_MAXSERV+1];
     
 };
 
 void usage();
-
 
 int get_udr_options(UDR_Options * options, int argc, char * argv[], int rsync_arg_idx);
 

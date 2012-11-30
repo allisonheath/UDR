@@ -410,7 +410,7 @@ int run_receiver(UDR_Options * udr_options) {
 	}
     }
   
-    char * rsync_cmd = (char *)malloc(strlen(cmd));
+    char * rsync_cmd = (char *)malloc(strlen(cmd) + 1);
     strcpy(rsync_cmd, cmd);
   
     char ** sh_cmd = (char **)malloc(sizeof(char *) * 4);

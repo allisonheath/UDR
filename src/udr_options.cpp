@@ -21,7 +21,6 @@ and limitations under the License.
 #include <cstring>
 #include <stdio.h>
 #include <getopt.h>
-#include <limits.h>
 #include "udr_options.h"
 
 #include <sys/stat.h>
@@ -47,23 +46,20 @@ void set_default_udr_options(UDR_Options * options) {
     options->version_flag = false;
     options->server_connect = false;
 
-    options->udr_program_src = (char*) malloc(PATH_MAX);
-    options->udr_program_dest = "udr";
-    options->ssh_program = "ssh";
-    options->rsync_program = "rsync";
-    options->rsync_timeout = "--timeout=15";
-    options->shell_program = "sh";
-    options->key_base_filename = ".udr_key";
-    options->key_filename = NULL;
+    snprintf(options->udr_program_dest, PATH_MAX, "%s", "udr");
+    snprintf(options->ssh_program, PATH_MAX, "%s", "ssh");
+    snprintf(options->rsync_program, PATH_MAX, "%s", "rsync");
+    snprintf(options->rsync_timeout, PATH_MAX, "%s", "--timeout=60");
+    snprintf(options->shell_program, PATH_MAX, "%s", "sh");
+    snprintf(options->key_base_filename, PATH_MAX, "%s", ".udr_key");
+    options->key_filename[0] = '\0';
     
-    options->host = (char *) malloc(PATH_MAX);
     options->host[0] = '\0';
-    options->username = (char *) malloc(PATH_MAX);
     options->username[0] = '\0';
-    options->which_process = NULL;
-    options->version = NULL;
-    options->server_dir = NULL;
-    options->server_port = "3490";
+    options->which_process[0] = '\0';
+    options->version[0] = '\0';
+    options->server_dir[0] = '\0';
+    snprintf(options->server_port, PATH_MAX, "%s", "3490");
 }
 
 int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsync_arg_idx) {
@@ -71,8 +67,8 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
     char *key_dir = NULL;
 
     set_default_udr_options(udr_options);
-
-    strcpy(udr_options->udr_program_src, argv[0]);
+        
+    snprintf(udr_options->udr_program_src, PATH_MAX, "%s", argv[0]);
 
     static struct option long_options[] = {
         {"verbose", no_argument, NULL, 'v'},
@@ -107,7 +103,7 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 	    break;
 	case 'd':
 	    udr_options->server = true;
-	    udr_options->server_dir = new char[PATH_MAX + 1];
+            
 	    realpath(optarg, udr_options->server_dir);
 
 	    if (udr_options->server_dir == NULL) {
@@ -131,16 +127,16 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 	    break;
 	case 's':
 	    udr_options->sflag = 1;
-	    udr_options->port_num = optarg;
+            snprintf(udr_options->port_num, NI_MAXSERV, "%s", optarg);
 	    break;
 	case 'l':
-	    udr_options->username = optarg;
+            snprintf(udr_options->username, PATH_MAX, "%s", optarg);
 	    break;
 	case 'p':
-	    udr_options->key_filename = optarg;
+            snprintf(udr_options->key_filename, PATH_MAX, "%s", optarg);
 	    break;
 	case 'c':
-	    udr_options->udr_program_dest = optarg;
+	    snprintf(udr_options->udr_program_dest, PATH_MAX, "%s", optarg);
 	    break;
 	case 'k':
 	    key_dir = optarg;
@@ -149,7 +145,7 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 	    udr_options->verbose = true;
 	    break;
 	case 'o':
-	    udr_options->server_port = optarg;
+            snprintf(udr_options->server_port, NI_MAXSERV, "%s", optarg);
 	case 0:
 	    if (strcmp("version", long_options[option_index].name) == 0) {
 		udr_options->version_flag = true;
@@ -162,20 +158,19 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 
     //Finish setting up the key file path
     if (key_dir == NULL) {
-        udr_options->key_filename = udr_options->key_base_filename;
+        snprintf(udr_options->key_filename, PATH_MAX, "%s", udr_options->key_base_filename);
     } else {
-        udr_options->key_filename = (char*) malloc(strlen(key_dir) + strlen(udr_options->key_base_filename) + 2);
         sprintf(udr_options->key_filename, "%s/%s", key_dir, udr_options->key_base_filename);
     }
 
     //Set which_process for debugging output
     if (udr_options->verbose) {
         if (udr_options->sflag)
-            udr_options->which_process = "Sender:";
+            snprintf(udr_options->which_process, PATH_MAX, "%s", "[sender]");
         else if (udr_options->tflag)
-            udr_options->which_process = "Receiver:";
+            snprintf(udr_options->which_process, PATH_MAX, "%s", "[receiver]");
         else
-            udr_options->which_process = "Original:";
+            snprintf(udr_options->which_process, PATH_MAX, "%s", "[original]");
 
         fprintf(stderr, "%s Local program: %s Remote program: %s Encryption: %d\n", udr_options->which_process, udr_options->udr_program_src, udr_options->udr_program_dest, udr_options->encryption);
     }
@@ -201,7 +196,7 @@ void parse_host_username(char * source, char * username, char * host, bool * dou
         strncpy(source_cpy, source, colon_loc - source + 1);
         strcat(source_cpy, colon_loc + 2);
         fprintf(stderr, "source_cpy: %s\n", source_cpy);
-        strcpy(source, source_cpy);
+        snprintf(source, PATH_MAX, "%s", source_cpy);
         free(source_cpy);
     }
     
@@ -249,20 +244,20 @@ void get_host_username(UDR_Options * udr_options, int argc, char *argv[], int rs
     bool dest_remote = true;
     
     //destination is always the last one
-    char dest_username[PATH_MAX];
-    char dest_host[PATH_MAX];
+    char dest_username[PATH_MAX+1];
+    char dest_host[PATH_MAX+1];
     bool dest_double_colon = false;
     dest_username[0] = '\0';
     dest_host[0] = '\0';
     
-    char next_src_username[PATH_MAX];
-    char next_src_host[PATH_MAX];
+    char next_src_username[PATH_MAX+1];
+    char next_src_host[PATH_MAX+1];
     bool next_src_double_colon = false;
     next_src_username[0] = '\0';
     next_src_host[0] = '\0';
     
-    char src_username[PATH_MAX];
-    char src_host[PATH_MAX];
+    char src_username[PATH_MAX+1];
+    char src_host[PATH_MAX+1];
     bool src_double_colon = false;
     src_username[0] = '\0';
     src_host[0] = '\0';
@@ -292,8 +287,8 @@ void get_host_username(UDR_Options * udr_options, int argc, char *argv[], int rs
                     exit(-1);
                 }
             }
-            strcpy(src_username, next_src_username);
-            strcpy(src_host, next_src_host);
+            snprintf(src_username, PATH_MAX, "%s", next_src_username);
+            snprintf(src_host, PATH_MAX, "%s", next_src_host);
             src_double_colon = next_src_double_colon;
             next_src_username[0] = '\0';
             next_src_host[0] = '\0';
@@ -326,13 +321,13 @@ void get_host_username(UDR_Options * udr_options, int argc, char *argv[], int rs
     }
     
     if(src_remote){
-        strcpy(udr_options->host, src_host);
-        strcpy(udr_options->username, src_username);
+        snprintf(udr_options->host, PATH_MAX, "%s", src_host);
+        snprintf(udr_options->username, PATH_MAX, "%s", src_username);
         udr_options->server_connect = src_double_colon;        
     }
     else{
-        strcpy(udr_options->host, dest_host);
-        strcpy(udr_options->username, dest_username);
+        snprintf(udr_options->host, PATH_MAX, "%s", dest_host);
+        snprintf(udr_options->username, PATH_MAX, "%s", dest_username);
         udr_options->server_connect = dest_double_colon;
     }
     
