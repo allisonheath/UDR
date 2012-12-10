@@ -33,7 +33,7 @@ int ppid_poll = 2;
 bool thread_log = false;
 
 //for debugging
-string local_logfile_dir = "/home/aheath/projects/udr/log/thread_";
+string local_logfile_dir = "/home/aheath/projects/udr_gh/log/thread_";
 
 void print_bytes(FILE* file, const void *object, size_t size) {
     size_t i;
@@ -307,7 +307,7 @@ int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char
 
 
 int run_receiver(UDR_Options * udr_options) {
-    //int orig_ppid = getppid();
+    int orig_ppid = getppid();
 
     UDT::startup();
 
@@ -464,6 +464,26 @@ int run_receiver(UDR_Options * udr_options) {
 	fprintf(stderr, "Receiver: waiting to join on recv_to_udt_thread\n");
 	fprintf(stderr, "Receiver: ppid %d pid %d\n", getppid(), getpid());
     }
+    
+    //going to poll if the ppid changes then we know it's exited and then we exit all of our threads and exit as well
+    //bit of a hack to deal with the pthreads
+    //also check if the threads have exited to break, still have the joins to ensure any cleanup is also completed
+    //maybe should check if one is complete, if it is, kill the other?
+
+    while(true){
+        if(getppid() != orig_ppid){
+            pthread_kill(recv_to_udt_thread, SIGUSR1);
+            pthread_kill(udt_to_recv_thread, SIGUSR1);
+            break;
+        }
+        if(recv_to_udt.is_complete || udt_to_recv.is_complete)
+            if(udr_options->verbose){
+                fprintf(stderr, "recv_to_udt.is_complete %d udt_to_recv.is_complete %d\n", recv_to_udt.is_complete, udt_to_recv.is_complete);
+            }
+            break;
+
+        sleep(ppid_poll);
+    }
 
     int rc1 = pthread_join(recv_to_udt_thread, NULL);
     if(udr_options->verbose)
@@ -472,23 +492,23 @@ int run_receiver(UDR_Options * udr_options) {
     UDT::close(recver);
 
     if(udr_options->verbose)
-	fprintf(stderr, "Receiver: Closed recver\n");
+	   fprintf(stderr, "Receiver: Closed recver\n");
 
 
     UDT::close(serv);
 
     if(udr_options->verbose)
-	fprintf(stderr, "Receiver: Closed serv\n");
+	   fprintf(stderr, "Receiver: Closed serv\n");
 
     UDT::cleanup();
 
     if(udr_options->verbose)
-	fprintf(stderr, "Receiver: UDT cleaned up\n");
+	   fprintf(stderr, "Receiver: UDT cleaned up\n");
 
     int rc2 = pthread_join(udt_to_recv_thread, NULL);
   
     if(udr_options->verbose)
-	fprintf(stderr, "Receiver: Joined udt_to_recv_thread %d Should be closing recver now\n", rc2);
+	   fprintf(stderr, "Receiver: Joined udt_to_recv_thread %d Should be closing recver now\n", rc2);
 
     return 1;
 }

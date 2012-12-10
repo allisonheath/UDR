@@ -27,6 +27,7 @@ and limitations under the License.
 
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 
 #include <udt.h>
 #include "crypto.h"
@@ -306,8 +307,16 @@ int main(int argc, char* argv[]) {
         while ((bytes_read = read(child_to_parent, rsync_out_buf, buf_size)) > 0) {
             bytes_written = write(STDOUT_FILENO, rsync_out_buf, bytes_read);
         }
+
+        int rsync_exit_status;
+
+        do {
+            pid_t w = waitpid(local_rsync_pid, &rsync_exit_status, WUNTRACED | WCONTINUED);
+            if (w == -1) {
+                perror("waitpid");
+                exit(EXIT_FAILURE);
+            }
+        } while (!WIFEXITED(rsync_exit_status) && !WIFSIGNALED(rsync_exit_status));
+        exit(EXIT_SUCCESS);
     }
-
 }
-
-
