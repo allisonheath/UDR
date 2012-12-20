@@ -93,10 +93,8 @@ int main(int argc, char* argv[]) {
         usage();
 
     if (curr_options.tflag) {
-        run_receiver(&curr_options);
-        if (curr_options.verbose)
-            fprintf(stderr, "%s run_receiver done\n", curr_options.which_process);
-        exit(0);
+        return run_receiver(&curr_options);
+        //exit(0);
     }//now for server mode
     else if (curr_options.server) {
         return run_as_server(&curr_options);

@@ -49,7 +49,7 @@ void set_default_udr_options(UDR_Options * options) {
     snprintf(options->udr_program_dest, PATH_MAX, "%s", "udr");
     snprintf(options->ssh_program, PATH_MAX, "%s", "ssh");
     snprintf(options->rsync_program, PATH_MAX, "%s", "rsync");
-    snprintf(options->rsync_timeout, PATH_MAX, "%s", "--timeout=60");
+    snprintf(options->rsync_timeout, PATH_MAX, "%s", "--timeout=0");
     snprintf(options->shell_program, PATH_MAX, "%s", "sh");
     snprintf(options->key_base_filename, PATH_MAX, "%s", ".udr_key");
     options->key_filename[0] = '\0';
@@ -166,11 +166,11 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
     //Set which_process for debugging output
     if (udr_options->verbose) {
         if (udr_options->sflag)
-            snprintf(udr_options->which_process, PATH_MAX, "%s", "[sender]");
+            snprintf(udr_options->which_process, PATH_MAX, "%s", "[udr sender]");
         else if (udr_options->tflag)
-            snprintf(udr_options->which_process, PATH_MAX, "%s", "[receiver]");
+            snprintf(udr_options->which_process, PATH_MAX, "%s", "[udr receiver]");
         else
-            snprintf(udr_options->which_process, PATH_MAX, "%s", "[original]");
+            snprintf(udr_options->which_process, PATH_MAX, "%s", "[udr original]");
 
         fprintf(stderr, "%s Local program: %s Remote program: %s Encryption: %d\n", udr_options->which_process, udr_options->udr_program_src, udr_options->udr_program_dest, udr_options->encryption);
     }

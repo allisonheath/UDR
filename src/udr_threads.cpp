@@ -29,11 +29,12 @@ and limitations under the License.
 #include "udr_util.h"
 #include "udr_threads.h"
 
+
 int ppid_poll = 2;
 bool thread_log = false;
 
 //for debugging
-string local_logfile_dir = "/home/aheath/projects/udr_gh/log/thread_";
+string local_logfile_dir = "/home/aheath/projects/udr_allison/log/thread_";
 
 void print_bytes(FILE* file, const void *object, size_t size) {
     size_t i;
@@ -87,24 +88,58 @@ void *handle_to_udt(void *threadarg) {
 	string filename = my_args->logfile_dir + convert_int(my_args->id) + "_log.txt";
 	logfile = fopen(filename.c_str(), "w");
     }
+    struct timeval tv;
+    fd_set readfds;
+    int bytes_read;
 
     while(true) {
 	int ss;
+	FD_ZERO(&readfds);
+	FD_SET(my_args->fd, &readfds);
+	tv.tv_sec = 1;
+	tv.tv_usec = 500000;
+	bytes_read = 0;
 
 	if(my_args->log) {
 	    fprintf(logfile, "%d: Should be reading from process...\n", my_args->id);
 	    fflush(logfile);
 	}
 
-	int bytes_read;
-	if(my_args->crypt != NULL)
+	//using select because only checking stdin and is more portable 
+	if(my_args->crypt != NULL){
 	    bytes_read = read(my_args->fd, indata, max_block_size);
-	else
-	    bytes_read = read(my_args->fd, outdata, max_block_size);
+	}
+	else{
+	    if(my_args->log){
+		fprintf(logfile, "before select %d %d\n", tv.tv_sec, tv.tv_usec);
+		fflush(logfile);
+	    }
+	    select(my_args->fd+1, &readfds, NULL, NULL, &tv);
+	    if(my_args->log){
+		fprintf(logfile, "after select\n");
+		fflush(logfile);
+	    }
+	
+	    if(FD_ISSET(my_args->fd, &readfds))
+		bytes_read = read(my_args->fd, outdata, max_block_size);
+	    else{
+		if(my_args->log){
+		    fprintf(logfile, "timed out %d %d\n", tv.tv_sec, tv.tv_usec);
+		    fflush(logfile);
+		}
+		if(my_args->is_complete){
+		    return NULL;
+		    fprintf(logfile, "my_args->is_complete is true\n");
+		    fflush(logfile);
+		}
+		else
+		    continue;
+	    }
+	}
 
 	if(bytes_read < 0){
 	    if(my_args->log){
-		fprintf(logfile, "Error: %s\n", strerror(errno));
+		fprintf(logfile, "Error: bytes_read %d %s\n", bytes_read, strerror(errno));
 		fclose(logfile);
 	    }
 	    my_args->is_complete = true;
@@ -194,7 +229,7 @@ void *udt_to_handle(void *threadarg) {
 
 	if(written_bytes < 0) {
 	    if(my_args->log){
-		fprintf(logfile, "Error: %s\n", strerror(errno));
+		fprintf(logfile, "Error: written_bytes: %d %s\n", written_bytes, strerror(errno));
 		fclose(logfile);
 	    }
 	    my_args->is_complete = true;
@@ -216,7 +251,7 @@ int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char
     hints.ai_socktype = SOCK_STREAM;
 
     if (0 != getaddrinfo(NULL, udr_options->port_num, &hints, &local)) {
-	cerr << "Sender: incorrect network address.\n" << endl;
+	cerr << "[udr sender] incorrect network address.\n" << endl;
 	return 1;
     }
 
@@ -225,12 +260,12 @@ int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char
     freeaddrinfo(local);
 
     if (0 != getaddrinfo(udr_options->host, udr_options->port_num, &hints, &peer)) {
-	cerr << "Sender: incorrect server/peer address. " << udr_options->host << ":" << udr_options->port_num << endl;
+	cerr << "[udr sender] incorrect server/peer address. " << udr_options->host << ":" << udr_options->port_num << endl;
 	return 1;
     }
 
     if (UDT::ERROR == UDT::connect(client, peer->ai_addr, peer->ai_addrlen)) {
-	cerr << "Sender: connect: " << UDT::getlasterror().getErrorMessage() << endl;
+	cerr << "[udr sender] connect: " << UDT::getlasterror().getErrorMessage() << endl;
 	return 1;
     }
 
@@ -252,7 +287,7 @@ int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char
     while(ssize < n) {
 	if (UDT::ERROR == (ss = UDT::send(client, cmd + ssize, n - ssize, 0)))
 	{
-	    cerr << "Sender: Send:" << UDT::getlasterror().getErrorMessage() << endl;
+	    cerr << "[udr sender] Send:" << UDT::getlasterror().getErrorMessage() << endl;
 	    break;
 	}
 
@@ -291,12 +326,48 @@ int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char
     pthread_create(&sender_to_udt_thread, NULL, handle_to_udt, (void *)&sender_to_udt);
 
     pthread_t udt_to_sender_thread;
-    pthread_create(&udt_to_sender_thread, NULL, udt_to_handle, (void*)&udt_to_sender);   
+    pthread_create(&udt_to_sender_thread, NULL, udt_to_handle, (void*)&udt_to_sender);
+    
+    
+//    while(true){
+//        if(sender_to_udt.is_complete && udt_to_sender.is_complete){
+//            if(udr_options->verbose){
+//                fprintf(stderr, "[sender] both threads are complete: sender_to_udt.is_complete %d udt_to_sender.is_complete %d\n", sender_to_udt.is_complete, udt_to_sender.is_complete);
+//            }
+//            break;
+//        }
+//        else if(sender_to_udt.is_complete){
+//            if(udr_options->verbose){
+//                fprintf(stderr, "[sender] sender_to_udt is complete: sender_to_udt.is_complete %d udt_to_sender.is_complete %d\n", sender_to_udt.is_complete, udt_to_sender.is_complete);
+//                pthread_kill(udt_to_sender_thread, SIGUSR1);
+//            }
+//            break;
+//        }
+//        else if(udt_to_sender.is_complete){
+//            if(udr_options->verbose){
+//                fprintf(stderr, "[sender] udt_to_sender is complete: sender_to_udt.is_complete %d udt_to_sender.is_complete %d\n", sender_to_udt.is_complete, udt_to_sender.is_complete);
+//                pthread_kill(sender_to_udt_thread, SIGUSR1);
+//            }
+//            break;
+//        }
+//
+//        sleep(ppid_poll);
+//    }
 
     int rc1 = pthread_join(udt_to_sender_thread, NULL);
+    
+    if(udr_options->verbose)
+	fprintf(stderr, "[udr sender] joined on udt_to_sender_thread %d\n", rc1);
+    
+
+    sender_to_udt.is_complete = true;
+    UDT::close(client);
+    //pthread_kill(sender_to_udt_thread, SIGUSR1);
+  
+    int rc2 = pthread_join(sender_to_udt_thread, NULL);
 
     if(udr_options->verbose)
-	fprintf(stderr, "Sender: joined on udt_to_sender_thread %d\n", rc1);
+        fprintf(stderr, "[udr sender] joined on sender_to_udt_thread %d\n", rc2);
 
     UDT::close(client);
     UDT::cleanup();
@@ -307,6 +378,9 @@ int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char
 
 
 int run_receiver(UDR_Options * udr_options) {
+    string filename = local_logfile_dir + "receiver_log.txt";
+    //FILE * logfile = fopen(filename.c_str(), "w");
+    
     int orig_ppid = getppid();
 
     UDT::startup();
@@ -346,7 +420,7 @@ int run_receiver(UDR_Options * udr_options) {
     }
 
     if(bad_port){
-	fprintf(stderr, "Receiver: ERROR: could not bind to any port in range %d - %d\n", udr_options->start_port, udr_options->end_port);
+	fprintf(stderr, "[udr receiver] ERROR: could not bind to any port in range %d - %d\n", udr_options->start_port, udr_options->end_port);
 	return 0;
     }
   
@@ -363,10 +437,10 @@ int run_receiver(UDR_Options * udr_options) {
     fflush(stdout);
 
     if(udr_options->verbose)
-	fprintf(stderr, "Receiver: server is ready at port %s\n", receiver_port);
+	fprintf(stderr, "[udr receiver] server is ready at port %s\n", receiver_port);
 
     if (UDT::ERROR == UDT::listen(serv, 10)) {
-	cerr << "Receiver: listen: " << UDT::getlasterror().getErrorMessage() << endl;
+	cerr << "[udr receiver] listen: " << UDT::getlasterror().getErrorMessage() << endl;
 	return 0;
     }
 
@@ -376,7 +450,7 @@ int run_receiver(UDR_Options * udr_options) {
     UDTSOCKET recver;
 
     if (UDT::INVALID_SOCK == (recver = UDT::accept(serv, (sockaddr*)&clientaddr, &addrlen))) {
-	fprintf(stderr, "Receiver: accept: %s\n", UDT::getlasterror().getErrorMessage());
+	fprintf(stderr, "[udr receiver] accept: %s\n", UDT::getlasterror().getErrorMessage());
 	return 0;
     }
 
@@ -425,7 +499,7 @@ int run_receiver(UDR_Options * udr_options) {
     int rsync_pid = fork_execvp(udr_options->shell_program, sh_cmd, &parent_to_child, &child_to_parent);
 
     if(udr_options->verbose)
-	fprintf(stderr, "Receiver: rsync pid: %d\n", rsync_pid);
+	fprintf(stderr, "[udr receiver] rsync pid: %d\n", rsync_pid);
 
     struct thread_data recv_to_udt;
     recv_to_udt.udt_socket = &recver;
@@ -461,54 +535,76 @@ int run_receiver(UDR_Options * udr_options) {
     pthread_create(&udt_to_recv_thread, NULL, udt_to_handle, (void*)&udt_to_recv);
 
     if(udr_options->verbose){
-	fprintf(stderr, "Receiver: waiting to join on recv_to_udt_thread\n");
-	fprintf(stderr, "Receiver: ppid %d pid %d\n", getppid(), getpid());
+	fprintf(stderr, "[udr receiver] waiting to join on recv_to_udt_thread\n");
+	fprintf(stderr, "[udr receiver]: ppid %d pid %d\n", getppid(), getpid());
     }
     
     //going to poll if the ppid changes then we know it's exited and then we exit all of our threads and exit as well
+    //also going to check if either thread is complete, if one is then the other should also be killed
     //bit of a hack to deal with the pthreads
-    //also check if the threads have exited to break, still have the joins to ensure any cleanup is also completed
-    //maybe should check if one is complete, if it is, kill the other?
-
     while(true){
         if(getppid() != orig_ppid){
             pthread_kill(recv_to_udt_thread, SIGUSR1);
             pthread_kill(udt_to_recv_thread, SIGUSR1);
             break;
         }
-        if(recv_to_udt.is_complete || udt_to_recv.is_complete)
+        if(recv_to_udt.is_complete && udt_to_recv.is_complete){
             if(udr_options->verbose){
-                fprintf(stderr, "recv_to_udt.is_complete %d udt_to_recv.is_complete %d\n", recv_to_udt.is_complete, udt_to_recv.is_complete);
+                fprintf(stderr, "[udr receiver] both threads are complete: recv_to_udt.is_complete %d udt_to_recv.is_complete %d\n", recv_to_udt.is_complete, udt_to_recv.is_complete);
+		UDT::close(recver);
+		fprintf(stderr, "[udr receiver] closed UDT socked\n");
             }
             break;
+        }
+        else if(recv_to_udt.is_complete){
+            if(udr_options->verbose){
+                fprintf(stderr, "[udr receiver] recv_to_udt is complete: recv_to_udt.is_complete %d udt_to_recv.is_complete %d\n", recv_to_udt.is_complete, udt_to_recv.is_complete);
+		UDT::close(recver);
+		fprintf(stderr, "[udr receiver] closed UDT socked\n");
+            }
+            break;
+        }
+        else if(udt_to_recv.is_complete){
+            if(udr_options->verbose){
+                fprintf(stderr, "[udr receiver] udt_to_recv is complete: recv_to_udt.is_complete %d udt_to_recv.is_complete %d\n", recv_to_udt.is_complete, udt_to_recv.is_complete);
+		fprintf(stderr, "[udr receiver] closed UDT socked\n");
+            }
+            break;
+        }
 
         sleep(ppid_poll);
     }
 
     int rc1 = pthread_join(recv_to_udt_thread, NULL);
-    if(udr_options->verbose)
-	fprintf(stderr, "Receiver: Joined recv_to_udt_thread %d\n", rc1);
+    if(udr_options->verbose){
+	fprintf(stderr, "[udr receiver] Joined recv_to_udt_thread %d\n", rc1);
+    }
 
-    UDT::close(recver);
+    
 
-    if(udr_options->verbose)
-	   fprintf(stderr, "Receiver: Closed recver\n");
+    if(udr_options->verbose){
+	fprintf(stderr, "[udr receiver] Closed recver\n");
+    }
 
 
     UDT::close(serv);
 
-    if(udr_options->verbose)
-	   fprintf(stderr, "Receiver: Closed serv\n");
+    if(udr_options->verbose){
+        fprintf(stderr, "[udr receiver] Closed serv\n");
+    }
 
     UDT::cleanup();
 
-    if(udr_options->verbose)
-	   fprintf(stderr, "Receiver: UDT cleaned up\n");
+    if(udr_options->verbose){
+	fprintf(stderr, "[udr receiver] UDT cleaned up\n");
+    }
 
     int rc2 = pthread_join(udt_to_recv_thread, NULL);
   
-    if(udr_options->verbose)
-	   fprintf(stderr, "Receiver: Joined udt_to_recv_thread %d Should be closing recver now\n", rc2);
+    if(udr_options->verbose){
+	fprintf(stderr, "[udr receiver] Joined udt_to_recv_thread %d Should be closing recver now\n", rc2);
+    }
+    
 
-    return 1;
+    return 0;
 }
