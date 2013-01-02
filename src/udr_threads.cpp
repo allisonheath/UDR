@@ -78,7 +78,13 @@ string udt_recv_string( int udt_handle ) {
     return str;
 }
 
+void sigexit(int signum) {
+    exit(EXIT_SUCCESS);
+}    /* Exit successfully */ 
+
 void *handle_to_udt(void *threadarg) {
+    signal(SIGUSR1,sigexit); 
+
     struct thread_data *my_args = (struct thread_data *) threadarg;
     char indata[max_block_size];
     char outdata[max_block_size];
@@ -88,17 +94,12 @@ void *handle_to_udt(void *threadarg) {
 	string filename = my_args->logfile_dir + convert_int(my_args->id) + "_log.txt";
 	logfile = fopen(filename.c_str(), "w");
     }
-    struct timeval tv;
+    //struct timeval tv;
     fd_set readfds;
     int bytes_read;
 
     while(true) {
 	int ss;
-	FD_ZERO(&readfds);
-	FD_SET(my_args->fd, &readfds);
-	tv.tv_sec = 1;
-	tv.tv_usec = 500000;
-	bytes_read = 0;
 
 	if(my_args->log) {
 	    fprintf(logfile, "%d: Should be reading from process...\n", my_args->id);
@@ -106,36 +107,10 @@ void *handle_to_udt(void *threadarg) {
 	}
 
 	//using select because only checking stdin and is more portable 
-	if(my_args->crypt != NULL){
+	if(my_args->crypt != NULL)
 	    bytes_read = read(my_args->fd, indata, max_block_size);
-	}
-	else{
-	    if(my_args->log){
-		fprintf(logfile, "before select %d %d\n", tv.tv_sec, tv.tv_usec);
-		fflush(logfile);
-	    }
-	    select(my_args->fd+1, &readfds, NULL, NULL, &tv);
-	    if(my_args->log){
-		fprintf(logfile, "after select\n");
-		fflush(logfile);
-	    }
-	
-	    if(FD_ISSET(my_args->fd, &readfds))
-		bytes_read = read(my_args->fd, outdata, max_block_size);
-	    else{
-		if(my_args->log){
-		    fprintf(logfile, "timed out %d %d\n", tv.tv_sec, tv.tv_usec);
-		    fflush(logfile);
-		}
-		if(my_args->is_complete){
-		    return NULL;
-		    fprintf(logfile, "my_args->is_complete is true\n");
-		    fflush(logfile);
-		}
-		else
-		    continue;
-	    }
-	}
+	else
+	    bytes_read = read(my_args->fd, outdata, max_block_size);
 
 	if(bytes_read < 0){
 	    if(my_args->log){
@@ -293,7 +268,7 @@ int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char
 
 	ssize += ss;
     }
-
+    
     struct thread_data sender_to_udt;
     sender_to_udt.udt_socket = &client;
     sender_to_udt.fd = STDIN_FILENO; //stdin of this process, from stdout of rsync
@@ -327,42 +302,14 @@ int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char
 
     pthread_t udt_to_sender_thread;
     pthread_create(&udt_to_sender_thread, NULL, udt_to_handle, (void*)&udt_to_sender);
-    
-    
-//    while(true){
-//        if(sender_to_udt.is_complete && udt_to_sender.is_complete){
-//            if(udr_options->verbose){
-//                fprintf(stderr, "[sender] both threads are complete: sender_to_udt.is_complete %d udt_to_sender.is_complete %d\n", sender_to_udt.is_complete, udt_to_sender.is_complete);
-//            }
-//            break;
-//        }
-//        else if(sender_to_udt.is_complete){
-//            if(udr_options->verbose){
-//                fprintf(stderr, "[sender] sender_to_udt is complete: sender_to_udt.is_complete %d udt_to_sender.is_complete %d\n", sender_to_udt.is_complete, udt_to_sender.is_complete);
-//                pthread_kill(udt_to_sender_thread, SIGUSR1);
-//            }
-//            break;
-//        }
-//        else if(udt_to_sender.is_complete){
-//            if(udr_options->verbose){
-//                fprintf(stderr, "[sender] udt_to_sender is complete: sender_to_udt.is_complete %d udt_to_sender.is_complete %d\n", sender_to_udt.is_complete, udt_to_sender.is_complete);
-//                pthread_kill(sender_to_udt_thread, SIGUSR1);
-//            }
-//            break;
-//        }
-//
-//        sleep(ppid_poll);
-//    }
-
+ 
     int rc1 = pthread_join(udt_to_sender_thread, NULL);
     
     if(udr_options->verbose)
 	fprintf(stderr, "[udr sender] joined on udt_to_sender_thread %d\n", rc1);
-    
 
-    sender_to_udt.is_complete = true;
     UDT::close(client);
-    //pthread_kill(sender_to_udt_thread, SIGUSR1);
+    pthread_kill(sender_to_udt_thread, SIGUSR1);
   
     int rc2 = pthread_join(sender_to_udt_thread, NULL);
 
@@ -579,8 +526,6 @@ int run_receiver(UDR_Options * udr_options) {
     if(udr_options->verbose){
 	fprintf(stderr, "[udr receiver] Joined recv_to_udt_thread %d\n", rc1);
     }
-
-    
 
     if(udr_options->verbose){
 	fprintf(stderr, "[udr receiver] Closed recver\n");

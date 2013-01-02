@@ -94,7 +94,6 @@ int main(int argc, char* argv[]) {
 
     if (curr_options.tflag) {
         return run_receiver(&curr_options);
-        //exit(0);
     }//now for server mode
     else if (curr_options.server) {
         return run_as_server(&curr_options);
@@ -315,6 +314,6 @@ int main(int argc, char* argv[]) {
                 exit(EXIT_FAILURE);
             }
         } while (!WIFEXITED(rsync_exit_status) && !WIFSIGNALED(rsync_exit_status));
-        exit(EXIT_SUCCESS);
+        exit(WEXITSTATUS(rsync_exit_status));
     }
 }
