@@ -30,11 +30,11 @@ and limitations under the License.
 #include "udr_threads.h"
 
 
-int ppid_poll = 2;
+int ppid_poll = 10;
 bool thread_log = false;
 
 //for debugging
-string local_logfile_dir = "/home/aheath/projects/udr_allison/log/thread_";
+string local_logfile_dir = "../log";
 
 void print_bytes(FILE* file, const void *object, size_t size) {
     size_t i;
@@ -498,23 +498,18 @@ int run_receiver(UDR_Options * udr_options) {
         if(recv_to_udt.is_complete && udt_to_recv.is_complete){
             if(udr_options->verbose){
                 fprintf(stderr, "[udr receiver] both threads are complete: recv_to_udt.is_complete %d udt_to_recv.is_complete %d\n", recv_to_udt.is_complete, udt_to_recv.is_complete);
-		UDT::close(recver);
-		fprintf(stderr, "[udr receiver] closed UDT socked\n");
             }
             break;
         }
         else if(recv_to_udt.is_complete){
             if(udr_options->verbose){
                 fprintf(stderr, "[udr receiver] recv_to_udt is complete: recv_to_udt.is_complete %d udt_to_recv.is_complete %d\n", recv_to_udt.is_complete, udt_to_recv.is_complete);
-		UDT::close(recver);
-		fprintf(stderr, "[udr receiver] closed UDT socked\n");
             }
             break;
         }
         else if(udt_to_recv.is_complete){
             if(udr_options->verbose){
                 fprintf(stderr, "[udr receiver] udt_to_recv is complete: recv_to_udt.is_complete %d udt_to_recv.is_complete %d\n", recv_to_udt.is_complete, udt_to_recv.is_complete);
-		fprintf(stderr, "[udr receiver] closed UDT socked\n");
             }
             break;
         }
@@ -522,10 +517,14 @@ int run_receiver(UDR_Options * udr_options) {
         sleep(ppid_poll);
     }
 
-    int rc1 = pthread_join(recv_to_udt_thread, NULL);
     if(udr_options->verbose){
-	fprintf(stderr, "[udr receiver] Joined recv_to_udt_thread %d\n", rc1);
+	fprintf(stderr, "[udr receiver] Trying to close recver\n");
     }
+    UDT::close(recver);
+    //int rc1 = pthread_join(recv_to_udt_thread, NULL);
+    //if(udr_options->verbose){
+    //fprintf(stderr, "[udr receiver] Joined recv_to_udt_thread %d\n", rc1);
+    //}
 
     if(udr_options->verbose){
 	fprintf(stderr, "[udr receiver] Closed recver\n");
@@ -544,11 +543,11 @@ int run_receiver(UDR_Options * udr_options) {
 	fprintf(stderr, "[udr receiver] UDT cleaned up\n");
     }
 
-    int rc2 = pthread_join(udt_to_recv_thread, NULL);
+    //int rc2 = pthread_join(udt_to_recv_thread, NULL);
   
-    if(udr_options->verbose){
-	fprintf(stderr, "[udr receiver] Joined udt_to_recv_thread %d Should be closing recver now\n", rc2);
-    }
+    //if(udr_options->verbose){
+    //fprintf(stderr, "[udr receiver] Joined udt_to_recv_thread %d Should be closing recver now\n", rc2);
+    //}
     
 
     return 0;

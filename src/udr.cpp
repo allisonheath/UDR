@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
             FILE* key_file = fopen(curr_options.key_filename, "r");
             if (key_file == NULL) {
                 fprintf(stderr, "UDR ERROR: could not read from key_file %s\n", curr_options.key_filename);
-                exit(-1);
+                exit(EXIT_FAILURE);
             }
             fscanf(key_file, "%s", hex_pp);
             fclose(key_file);
@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
             int server_exists = get_server_connection(curr_options.host, curr_options.server_port, udr_cmd, line, line_size);
             if (!server_exists) {
                 fprintf(stderr, "UDR ERROR: Cannot connect to server at %s:%s\n", curr_options.host, curr_options.server_port);
-                exit(1);
+                exit(EXIT_FAILURE);
             }
         }
         /* If not try ssh */
@@ -207,15 +207,15 @@ int main(int argc, char* argv[]) {
             }
 
             if (nbytes <= 0) {
-                fprintf(stderr, "udr: unexpected response from server, exiting.\n");
-                exit(1);
+                fprintf(stderr, "UDR ERROR: unexpected response from server, exiting.\n");
+                exit(EXIT_FAILURE);
             }
         }
         /* Now do the exact same thing no matter whether server or ssh process */
 
         if (strlen(line) == 0) {
-            fprintf(stderr, "udr: unexpected response from server, exiting.\n");
-            exit(1);
+            fprintf(stderr, "UDR ERROR: unexpected response from server, exiting.\n");
+            exit(EXIT_FAILURE);
         }
 
         snprintf(curr_options.port_num, PATH_MAX, "%s", strtok(line, " "));
@@ -232,7 +232,7 @@ int main(int argc, char* argv[]) {
 
             if (key_file == NULL) {
                 fprintf(stderr, "UDR ERROR: could not write key file: %s\n", curr_options.key_filename);
-                exit(-1);
+                exit(EXIT_FAILURE);
             }
             fprintf(key_file, "%s", hex_pp);
             fclose(key_file);
@@ -259,7 +259,7 @@ int main(int argc, char* argv[]) {
         
         rsync_argv[rsync_idx++] = "--blocking-io";
 
-        rsync_argv[rsync_idx++] = curr_options.rsync_timeout;
+        //rsync_argv[rsync_idx++] = curr_options.rsync_timeout;
 
         rsync_argv[rsync_idx++] = "-e";
 
