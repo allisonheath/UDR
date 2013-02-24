@@ -1,4 +1,21 @@
 #!/usr/bin/env python
+
+#   Copyright 2012 Laboratory for Advanced Computing at the University of Chicago
+#
+#   This file is part of UDR.
+# 
+#   Licensed under the Apache License, Version 2.0 (the "License"); 
+#   you may not use this file except in compliance with the License. 
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software 
+#   distributed under the License is distributed on an "AS IS" BASIS, WITHOUT 
+#   WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+#   License for the specific language governing permissions and limitations 
+#   under the License.
+
 import os, re, sys, pwd, grp
 import optparse, subprocess, logging
 import SocketServer
@@ -8,7 +25,8 @@ class UDRHandler(SocketServer.StreamRequestHandler):
     def handle(self):
         logging.info('New connection from %s' % self.client_address[0])
 
-        #depends on the udr cmd having a newline at the end -- perhaps should add a timeout, or maybe none at all 
+        #depends on the udr cmd having a newline at the end
+        #perhaps should add a timeout, or maybe none at all 
         line = self.rfile.readline().strip()
 
         if not line:
@@ -33,14 +51,14 @@ class UDRHandler(SocketServer.StreamRequestHandler):
             logging.debug('UDR cmd: %s' % udr_cmd)
 
             try:
-                p = subprocess.Popen(udr_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-                firstline = p.stdout.readline()
+                udr_proc = subprocess.Popen(udr_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+                firstline = udr_proc.stdout.readline()
                 logging.debug('firstline: ' + firstline)
                 logging.info('providing port %s for UDR to %s' % (firstline.split()[0], self.client_address[0]))
                 self.wfile.write(firstline)
 
-            except OSError, e:
-                logging.critical('%s, cmd: %s, exiting.' % (' '.join(udr_cmd), e.strerror))
+            except OSError, err:
+                logging.critical('%s, cmd: %s, exiting.' % (' '.join(udr_cmd), err.strerror))
                 sys.exit(1)
 
 class UDRServer(Daemon, object):
@@ -67,9 +85,9 @@ class UDRServer(Daemon, object):
 
 
     def read_lines(self, filename):
-        file = open(filename)
+        linefile = open(filename)
         lines = []
-        for line in file:
+        for line in linefile:
             line = line.strip()
             lines.append(line)
             if not line.endswith("\\"):
@@ -87,11 +105,10 @@ class UDRServer(Daemon, object):
         self.params['rsyncd conf'] = '/etc/rsyncd.conf'
         self.params['verbose'] = False
         self.params['pid file'] = '/var/run/udrd.pid'
-        self.params['log file'] = '/dev/null'
+        self.params['log file'] = ''.join([os.getcwd(), '/udr.log'])
 
-        curr_module = None
-        paren_re = re.compile('\[(\w+)\]')
-        eq_re = re.compile('(.+)=(.+)')
+        paren_re = re.compile(r'\[(\w+)\]')
+        eq_re = re.compile(r'(.+)=(.+)')
 
         for line in self.read_lines(filename):
             line = line.strip()
@@ -116,18 +133,15 @@ class UDRServer(Daemon, object):
 
     def config_logger(self):
         logger = logging.getLogger()
-
-        if self.params['log file']:
-            handler = logging.FileHandler(self.params['log file'])
-        else:
-            handler = logging.SteamHandler()
-
+        handler = logging.FileHandler(self.params['log file'])
         formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
         handler.setFormatter(formatter)
         logger.addHandler(handler)
     
-        if self.params['log level']:
+        if 'log level' in self.params:
             logger.setLevel(getattr(logging, self.params['log level'].upper()))
+        else:
+            logger.setLevel(logging.INFO)
 
 if __name__ == '__main__':
     parser = optparse.OptionParser()
@@ -143,11 +157,16 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1:
         if 'start' == sys.argv[-1]:
+            sys.stderr.write('Starting UDR server\n')
             daemon.start()
         elif 'stop' == sys.argv[-1]:
+            sys.stderr.write('Stopping UDR server\n')
             daemon.stop()
         elif 'restart' == sys.argv[-1]:
-            daemon.restart()
+            sys.stderr.write('Stopping UDR server\n')
+            daemon.stop()
+            sys.stderr.write('Starting UDR server\n')
+            daemon.start()
         elif 'foreground' == sys.argv[-1]:
             daemon.run()
         else:
@@ -157,4 +176,3 @@ if __name__ == '__main__':
     else:
         print "usage: %s start|stop|restart" % sys.argv[0]
         sys.exit(2)
-        
