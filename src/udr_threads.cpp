@@ -30,7 +30,7 @@ and limitations under the License.
 #include "udr_threads.h"
 
 
-int ppid_poll = 10;
+int ppid_poll = 5;
 bool thread_log = false;
 
 //for debugging
@@ -413,6 +413,7 @@ int run_receiver(UDR_Options * udr_options) {
 //  int file_idx = -1;
 //  bool called_glob = false;
 
+
     string cmd_str = udt_recv_string(recver);
     const char * cmd = cmd_str.c_str();
   
@@ -422,17 +423,28 @@ int run_receiver(UDR_Options * udr_options) {
 	exit(1);
     }
  
-    // If we're in server mode need to handle the pathing issues.
-    if(udr_options->server){
-	if(!seen_sender){
-//           const char * error_msg = "UDR ERROR: server mode is read-only\n";
-	    //maybe log to server log -- can't send back because rsync doesn't expect and gives the is your shell clean error
-	    exit(1);
-	}
+    char * rsync_cmd;
+    if(udr_options->server_connect){
+        if(udr_options->verbose)
+            fprintf(stderr, "[udr receiver] server connect mode\n");
+        
+        rsync_cmd = (char *)malloc(100);
+
+        if(strlen(udr_options->server_config) > 0){
+            sprintf(rsync_cmd, "%s%s %s", "rsync --config=", udr_options->server_config, " --server --daemon .");
+        }
+        else{ 
+            strcpy(rsync_cmd, "rsync --server --daemon .");
+        }
     }
-  
-    char * rsync_cmd = (char *)malloc(strlen(cmd) + 1);
-    strcpy(rsync_cmd, cmd);
+    else{
+        rsync_cmd = (char *)malloc(strlen(cmd) + 1);
+        strcpy(rsync_cmd, cmd);
+    }
+
+    if(udr_options->verbose){
+        fprintf(stderr, "[udr receiver] rsync cmd: %s\n", rsync_cmd);
+    }
   
     char ** sh_cmd = (char **)malloc(sizeof(char *) * 4);
     sh_cmd[0] = udr_options->shell_program;
@@ -445,8 +457,9 @@ int run_receiver(UDR_Options * udr_options) {
   
     int rsync_pid = fork_execvp(udr_options->shell_program, sh_cmd, &parent_to_child, &child_to_parent);
 
-    if(udr_options->verbose)
-	fprintf(stderr, "[udr receiver] rsync pid: %d\n", rsync_pid);
+    if(udr_options->verbose){
+	    fprintf(stderr, "[udr receiver] rsync pid: %d\n", rsync_pid);
+    }
 
     struct thread_data recv_to_udt;
     recv_to_udt.udt_socket = &recver;

@@ -49,10 +49,17 @@ char * get_udr_cmd(UDR_Options * udr_options) {
     if (udr_options->verbose)
         strcat(udr_args, "-v");
 
-    sprintf(udr_args, "%s -a %d -b %d %s", udr_args, udr_options->start_port, udr_options->end_port, "-t rsync");
+    if(udr_options->server_connect) {
+        sprintf(udr_args, "%s %s", udr_args, "-t rsync");
+    }
+    else {
+        sprintf(udr_args, "%s -a %d -b %d %s", udr_args, udr_options->start_port, udr_options->end_port, "-t rsync");
+    }
+
+    fprintf(stderr, "udr_args: %s\n", udr_args);
 
     char* udr_cmd = (char *) malloc(strlen(udr_options->udr_program_dest) + strlen(udr_args) + 3);
-    sprintf(udr_cmd, "%s %s", udr_options->udr_program_dest, udr_args);
+    sprintf(udr_cmd, "%s %s\n", udr_options->udr_program_dest, udr_args);
 
     return udr_cmd;
 }
@@ -150,18 +157,26 @@ int main(int argc, char* argv[]) {
             fprintf(stderr, "%s run_sender done\n", curr_options.which_process);
     } 
     else {
-	char * udr_cmd = get_udr_cmd(&curr_options);
-       
-	//get the host and username first 
-	get_host_username(&curr_options, argc, argv, rsync_arg_idx);
+        //get the host and username first 
+        get_host_username(&curr_options, argc, argv, rsync_arg_idx);
+
+	    char * udr_cmd = get_udr_cmd(&curr_options);
+        if (curr_options.verbose){
+            fprintf(stderr, "%s udr_cmd %s\n", curr_options.which_process, udr_cmd);
+        }
        
         int line_size = NI_MAXSERV + PASSPHRASE_SIZE * 2 + 1;
         char * line = (char*) malloc(line_size);
         line[0] = '\0';
 
-        /* if given double colons then use the server connection -- curr_options.server is incorrect -- need to figure out -- not working right now */
+        /* if given double colons then use the server connection: curr_options.server_connect, curr_options.server is for the udr server */
         if (curr_options.server_connect) {
+            if(curr_options.verbose){
+                fprintf(stderr, "%s trying server connection\n", curr_options.which_process);
+            }
+
             int server_exists = get_server_connection(curr_options.host, curr_options.server_port, udr_cmd, line, line_size);
+
             if (!server_exists) {
                 fprintf(stderr, "UDR ERROR: Cannot connect to server at %s:%s\n", curr_options.host, curr_options.server_port);
                 exit(EXIT_FAILURE);

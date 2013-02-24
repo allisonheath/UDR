@@ -1,0 +1,12 @@
+# Example configuration for UDR server
+address = 0.0.0.0 
+server port = 9000
+start port = 9000
+end port = 9100
+log file = /home/ubuntu/UDR/server/udr.log
+pid file = /tmp/udr-example.pid
+log level = INFO
+udr = /home/ubuntu/UDR/src/udr 
+rsyncd conf = /home/ubuntu/UDR/server/rsyncd.conf
+uid = rsyncuser
+gid = rsyncuser

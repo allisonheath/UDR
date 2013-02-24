@@ -22,5 +22,16 @@ udt/app/recvfile
 udt/app/sendfile
 udt/app/test
 
+#server
+*.pyc
+server/rsyncd.conf
+server/udrd.conf
+server/udr.log
+server/motd.txt
+server/rsynclog
+server/.venv
+server/.venv2.4
+server/.venv2.6
+
 # Emacs files
 *~
