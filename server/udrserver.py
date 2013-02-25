@@ -186,9 +186,9 @@ if __name__ == '__main__':
         elif 'foreground' == sys.argv[-1]:
             daemon.run()
         else:
-            print "Unknown command"
+            print "usage: %s [options] start|stop|restart|foreground" % sys.argv[0]
             sys.exit(2)
         sys.exit(0)
     else:
-        print "usage: %s start|stop|restart|foreground" % sys.argv[0]
+        print "usage: %s [options] start|stop|restart|foreground" % sys.argv[0]
         sys.exit(2)
