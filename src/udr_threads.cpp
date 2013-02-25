@@ -496,7 +496,7 @@ int run_receiver(UDR_Options * udr_options) {
 
     if(udr_options->verbose){
 	fprintf(stderr, "[udr receiver] waiting to join on recv_to_udt_thread\n");
-	fprintf(stderr, "[udr receiver]: ppid %d pid %d\n", getppid(), getpid());
+	fprintf(stderr, "[udr receiver] ppid %d pid %d\n", getppid(), getpid());
     }
     
     //going to poll if the ppid changes then we know it's exited and then we exit all of our threads and exit as well

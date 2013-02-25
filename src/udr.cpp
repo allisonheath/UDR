@@ -56,8 +56,6 @@ char * get_udr_cmd(UDR_Options * udr_options) {
         sprintf(udr_args, "%s -a %d -b %d %s", udr_args, udr_options->start_port, udr_options->end_port, "-t rsync");
     }
 
-    fprintf(stderr, "udr_args: %s\n", udr_args);
-
     char* udr_cmd = (char *) malloc(strlen(udr_options->udr_program_dest) + strlen(udr_args) + 3);
     sprintf(udr_cmd, "%s %s\n", udr_options->udr_program_dest, udr_args);
 
