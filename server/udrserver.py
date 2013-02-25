@@ -17,7 +17,7 @@
 #   under the License.
 
 import os, re, sys, pwd, grp
-import optparse, subprocess, logging
+import signal, optparse, subprocess, logging
 import SocketServer
 from daemon import Daemon
 
@@ -51,6 +51,7 @@ class UDRHandler(SocketServer.StreamRequestHandler):
             logging.debug('UDR cmd: %s' % udr_cmd)
 
             try:
+                signal.signal(signal.SIGCHLD,signal.SIG_IGN)
                 udr_proc = subprocess.Popen(udr_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
                 firstline = udr_proc.stdout.readline()
                 logging.debug('firstline: ' + firstline)
