@@ -62,8 +62,9 @@ class UDRHandler(SocketServer.StreamRequestHandler):
                 sys.exit(1)
 
 class UDRServer(Daemon, object):
-    def __init__(self, configfile, verbose):
+    def __init__(self, configfile, verbose=False):
         self.params = {}
+        self.params['verbose'] = verbose
         self.parse_global_conf(configfile)
         super(UDRServer, self).__init__(pidfile=self.params['pid file'], stdout=self.params['log file'], stderr=self.params['log file'])
 
@@ -103,7 +104,6 @@ class UDRServer(Daemon, object):
         self.params['address'] = '0.0.0.0'
         self.params['port'] = 9000
         self.params['rsyncd conf'] = '/etc/rsyncd.conf'
-        self.params['verbose'] = False
         self.params['pid file'] = '/var/run/udrd.pid'
         self.params['log file'] = ''.join([os.getcwd(), '/udr.log'])
 
@@ -146,6 +146,7 @@ class UDRServer(Daemon, object):
 if __name__ == '__main__':
     parser = optparse.OptionParser()
     parser.add_option('-c', '--config', dest="config", help="UDR server config file")
+    parser.add_option('-v', '--verbose', action="store_true", dest="verbose", default=False)
     (options, args) = parser.parse_args()
 
     if options.config:
@@ -153,7 +154,7 @@ if __name__ == '__main__':
     else:
         configfile = '/etc/udrd.conf'
 
-    daemon = UDRServer(configfile, True)
+    daemon = UDRServer(configfile, options.verbose)
 
     if len(sys.argv) > 1:
         if 'start' == sys.argv[-1]:
