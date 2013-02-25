@@ -42,7 +42,7 @@ void set_default_udr_options(UDR_Options * options) {
     options->sflag = false;
     options->verbose = false;
     options->encryption = false;
-    options->server = false;
+    //options->server = false;
     options->version_flag = false;
     options->server_connect = false;
 
@@ -181,10 +181,17 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
         fprintf(stderr, "%s Local program: %s Remote program: %s Encryption: %d\n", udr_options->which_process, udr_options->udr_program_src, udr_options->udr_program_dest, udr_options->encryption);
     }
 
+    //check that -e/--rsh flag has not been used with rsync
+    for(int i = rsync_arg_idx; i < argc; i++){
+        if(strcmp(argv[i], "-e") == 0 || strcmp(argv[i], "--rsh") == 0){
+            fprintf(stderr, "UDR ERROR: UDR overrides the -e, --rsh flag of rsync, so they cannot be used in the provided rsync command\n");
+            exit(1);
+        }
+    }
+
     return 1;
 }
 
-//gah. 
 void parse_host_username(char * source, char * username, char * host, bool * double_colon){
     char * colon_loc = strchr(source, ':');
     char * at_loc = strchr(source, '@');
@@ -197,13 +204,6 @@ void parse_host_username(char * source, char * username, char * host, bool * dou
     
     if(colon_loc[1] == ':'){
         *double_colon = true;
-        //going to get rid of the double colon -- this may be a terrible idea
-        //char * source_cpy = (char *) malloc(strlen(source)+1);
-        //strncpy(source_cpy, source, colon_loc - source + 1);
-        //strcat(source_cpy, colon_loc + 2);
-        //fprintf(stderr, "source_cpy: %s\n", source_cpy);
-        //snprintf(source, PATH_MAX, "%s", source_cpy);
-        //free(source_cpy);
     }
     
     //probably should check lengths here?

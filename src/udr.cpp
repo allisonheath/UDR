@@ -33,7 +33,7 @@ and limitations under the License.
 #include "crypto.h"
 #include "cc.h"
 #include "udr_threads.h"
-#include "udr_server.h"
+#include "udr_util.h"
 #include "udr_options.h"
 #include "version.h"
 
@@ -102,9 +102,9 @@ int main(int argc, char* argv[]) {
     if (curr_options.tflag) {
         return run_receiver(&curr_options);
     }//now for server mode
-    else if (curr_options.server) {
-        return run_as_server(&curr_options);
-    } 
+    //else if (curr_options.server) {
+    //    return run_as_server(&curr_options);
+    //} 
     
     else if (curr_options.sflag) {
         string arguments = "";
