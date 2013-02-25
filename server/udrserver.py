@@ -70,13 +70,7 @@ class UDRServer(Daemon, object):
         super(UDRServer, self).__init__(pidfile=self.params['pid file'], stdout=self.params['log file'], stderr=self.params['log file'])
 
     def run(self):
-        if 'gid' in self.params:
-            gid = grp.getgrnam(self.params['gid']).gr_gid
-            os.setgid(gid)
-        if 'uid' in self.params:
-            uid = pwd.getpwnam(self.params['uid']).pw_uid
-            os.setuid(uid)
-        
+        self.set_uid_gid()
         self.config_logger()    
         SocketServer.TCPServer.allow_reuse_address = True
         server = SocketServer.TCPServer((self.params['address'], int(self.params['port'])), UDRHandler) 
@@ -85,6 +79,26 @@ class UDRServer(Daemon, object):
         logging.info('UDR server started on %s %s' % (self.params['address'], self.params['port']))
         server.serve_forever()
 
+    def set_uid_gid(self):
+        if 'gid' in self.params:
+            if self.params['gid'].isdigit():
+                os.setgid(int(self.params['gid']))
+            else:
+                gid = grp.getgrnam(self.params['gid']).gr_gid
+                os.setgid(gid)
+        else:
+            if os.getegid() == 0:
+                os.setgid(grp.getgrnam('nogroup').gr_gid)
+
+        if 'uid' in self.params:
+            if self.params['uid'].isdigit():
+                os.setuid(int(self.params['uid']))
+            else:
+                uid = pwd.getpwnam(self.params['uid']).pw_uid
+                os.setuid(uid)
+        else:
+            if os.geteuid() == 0:
+                os.setuid(pwd.getpwnam('nobody').pw_uid)
 
     def read_lines(self, filename):
         linefile = open(filename)
@@ -176,5 +190,5 @@ if __name__ == '__main__':
             sys.exit(2)
         sys.exit(0)
     else:
-        print "usage: %s start|stop|restart" % sys.argv[0]
+        print "usage: %s start|stop|restart|foreground" % sys.argv[0]
         sys.exit(2)
