@@ -32,6 +32,7 @@ UDR must be on the client and server machines that data will be transferred betw
 [-n] turns on encryption  
 [-p path] local path for the .udr_key file used for encryption, default is the current directory   
 [-c remote udr location] by default udr assumes that udr is in your path on the remote system, here you can specify the location explicitly  
+[-o server port] port to access a UDR server, default is 9000
 [-v] verbose mode, typically for debugging purposes  
 [--version] print out the version  
 

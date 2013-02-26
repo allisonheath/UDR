@@ -22,6 +22,10 @@ import SocketServer
 from daemon import Daemon
 
 class UDRHandler(SocketServer.StreamRequestHandler):
+    """
+    Handler for incoming UDR connections, ignores the UDR command sent and builds it's own
+    UDR command to run on the server based on the server's configuration.
+    """
     def handle(self):
         logging.info('New connection from %s' % self.client_address[0])
 
@@ -63,6 +67,10 @@ class UDRHandler(SocketServer.StreamRequestHandler):
                 sys.exit(1)
 
 class UDRServer(Daemon, object):
+    """
+    Server daemon containing methods to handle the configuration, logging and setting uid/gid
+    when appropriate
+    """
     def __init__(self, configfile, verbose=False):
         self.params = {}
         self.params['verbose'] = verbose
@@ -158,7 +166,10 @@ class UDRServer(Daemon, object):
         else:
             logger.setLevel(logging.INFO)
 
-if __name__ == '__main__':
+def main():
+    """
+    Parses server options and start|stop|restart|foreground UDRServer daemon
+    """
     parser = optparse.OptionParser()
     parser.add_option('-c', '--config', dest="config", help="UDR server config file")
     parser.add_option('-v', '--verbose', action="store_true", dest="verbose", default=False)
@@ -192,3 +203,6 @@ if __name__ == '__main__':
     else:
         print "usage: %s [options] start|stop|restart|foreground" % sys.argv[0]
         sys.exit(2)
+
+if __name__ == '__main__':
+    main()
