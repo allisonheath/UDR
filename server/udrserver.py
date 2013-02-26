@@ -81,10 +81,10 @@ class UDRServer(Daemon, object):
         self.set_uid_gid()
         self.config_logger()    
         SocketServer.TCPServer.allow_reuse_address = True
-        server = SocketServer.TCPServer((self.params['address'], int(self.params['port'])), UDRHandler) 
+        server = SocketServer.TCPServer((self.params['address'], int(self.params['server port'])), UDRHandler) 
         server.params = self.params
         logging.debug('params: %s' % str(self.params))
-        logging.info('UDR server started on %s %s' % (self.params['address'], self.params['port']))
+        logging.info('UDR server started on %s %s' % (self.params['address'], self.params['server port']))
         server.serve_forever()
 
     def set_uid_gid(self):
@@ -125,7 +125,7 @@ class UDRServer(Daemon, object):
         self.params['start port'] = '9000'
         self.params['end port'] = '9100'
         self.params['address'] = '0.0.0.0'
-        self.params['port'] = 9000
+        self.params['server port'] = 9000
         self.params['rsyncd conf'] = '/etc/rsyncd.conf'
         self.params['pid file'] = '/var/run/udrd.pid'
         self.params['log file'] = ''.join([os.getcwd(), '/udr.log'])
