@@ -16,7 +16,7 @@
 #   License for the specific language governing permissions and limitations 
 #   under the License.
 
-import os, re, sys, pwd, grp
+import os, re, sys, pwd, grp, time
 import signal, optparse, subprocess, logging
 import SocketServer
 from daemon import Daemon
@@ -192,6 +192,7 @@ def main():
         elif 'restart' == sys.argv[-1]:
             sys.stderr.write('Stopping UDR server\n')
             daemon.stop()
+            time.sleep(2)
             sys.stderr.write('Starting UDR server\n')
             daemon.start()
         elif 'foreground' == sys.argv[-1]:
