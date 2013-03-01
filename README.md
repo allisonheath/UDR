@@ -55,9 +55,9 @@ The UDR server allows UDR transfers for users without accounts, similar to rsync
     python udrserver.py [-v] [-c configfile] start|stop|restart|foreground
 
 ### UDR server options:
-[-c config file] specify the location of the config file, default is /etc/udrd.conf
-[-s] silent mode, don't print message on start|stop|restart
-[-v] verbose mode, mainly for debugging purposes
+[-c config file] specify the location of the config file, default is /etc/udrd.conf  
+[-s] silent mode, don't print message on start|stop|restart  
+[-v] verbose mode, mainly for debugging purposes  
 
 
 ### UDR server configuration:
@@ -75,7 +75,7 @@ The UDR server requires a configuration file, by default it looks for /etc/udrd.
 - uid: user name or uid that the server should run as when started as root, default is nobody when run as root
 - gid: group name or gid that the server should run as when started as root, default is nogroup when run as root 
 
-Most standard rsyncd.conf options should work like normal. The uid/gid options will not work and are preempted by the uid/gid options in udrd.conf. The max connections option does not work, but the number of connections can be limited by the range of start and end port in the udrd.conf file because one connection requires one port. For example, if you only want 50 connections, set the start port to 9000 and the end port to 9050.
+Most standard rsyncd.conf options should work like normal. The uid/gid options will not work and are preempted by the uid/gid options in udrd.conf. The max connections option does not work, but the number of connections can be limited by the range of start and end port in the udrd.conf file because one connection requires one port. For example, if you only want 50 connections, set the start port to 9000 and the end port to 9050. If the max connections option is set, the rsync processes will try to write to the lock file, which they often do not have permission to and will return the error "@ERROR: failed to open lock file". You can set the lock file location in rsyncd.conf or remove the max connections option.
 
 WARNING: UDR server has only be tested in read only mode, it is not recommended to enable write access.
 
