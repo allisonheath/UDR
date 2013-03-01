@@ -171,8 +171,9 @@ def main():
     Parses server options and start|stop|restart|foreground UDRServer daemon
     """
     parser = optparse.OptionParser()
-    parser.add_option('-c', '--config', dest="config", help="UDR server config file")
-    parser.add_option('-v', '--verbose', action="store_true", dest="verbose", default=False)
+    parser.add_option('-c', '--config', dest='config', help='UDR server config file')
+    parser.add_option('-v', '--verbose', action='store_true', dest='verbose', default=False)
+    parser.add_option('-s', '--silent', action='store_true', dest='silent', default=False)
     (options, args) = parser.parse_args()
 
     if options.config:
@@ -184,16 +185,20 @@ def main():
 
     if len(sys.argv) > 1:
         if 'start' == sys.argv[-1]:
-            sys.stderr.write('Starting UDR server\n')
+            if not options.silent:
+                sys.stderr.write('Starting UDR server\n')
             daemon.start()
         elif 'stop' == sys.argv[-1]:
-            sys.stderr.write('Stopping UDR server\n')
+            if not options.silent:
+                sys.stderr.write('Stopping UDR server\n')
             daemon.stop()
         elif 'restart' == sys.argv[-1]:
-            sys.stderr.write('Stopping UDR server\n')
+            if not options.silent:
+                sys.stderr.write('Stopping UDR server\n')
             daemon.stop()
             time.sleep(2)
-            sys.stderr.write('Starting UDR server\n')
+            if not options.silent:
+                sys.stderr.write('Starting UDR server\n')
             daemon.start()
         elif 'foreground' == sys.argv[-1]:
             daemon.run()
