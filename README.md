@@ -56,7 +56,9 @@ The UDR server allows UDR transfers for users without accounts, similar to rsync
 
 ### UDR server options:
 [-c config file] specify the location of the config file, default is /etc/udrd.conf
+[-s] silent mode, don't print message on start|stop|restart
 [-v] verbose mode, mainly for debugging purposes
+
 
 ### UDR server configuration:
 The UDR server requires a configuration file, by default it looks for /etc/udrd.conf. The format of the file is a list of parameter of the format 'name = value'. An example config file is provided, the available parameters are:
