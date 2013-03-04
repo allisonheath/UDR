@@ -61,6 +61,9 @@ void set_default_udr_options(UDR_Options * options) {
     options->server_dir[0] = '\0';
     options->server_config[0] = '\0';
     snprintf(options->server_port, PATH_MAX, "%s", "9000");
+
+    options->rsync_uid = 0;
+    options->rsync_gid = 0;
 }
 
 int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsync_arg_idx) {
@@ -85,6 +88,8 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
         {"keydir", required_argument, NULL, 'k'},
         {"remote-udr", required_argument, NULL, 'c'},
         {"server-port", required_argument, NULL, 'o'},
+        {"rsync-uid", required_argument, NULL, 0},
+        {"rsync-gid", required_argument, NULL, 0},
         {"config", required_argument, NULL, 0},
         {0, 0, 0, 0}
     };
@@ -102,39 +107,18 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 	case 't':
 	    udr_options->tflag = 1;
 	    break;
-	// case 'd':
-	//     udr_options->server = true;
-            
-	//     realpath(optarg, udr_options->server_dir);
-
-	//     if (udr_options->server_dir == NULL) {
-	// 	fprintf(stderr, "udr: error: could not resolve path %s\n", optarg);
-	// 	exit(1);
-	//     }
-	//     struct stat st;
-	//     if (stat(udr_options->server_dir, &st) != 0) {
-	// 	fprintf(stderr, "udr: error: directory %s is not present\n", udr_options->server_dir);
-	// 	exit(1);
-	//     }
-
-	//     if (!S_ISDIR(st.st_mode)) {
-	// 	fprintf(stderr, "udr: error: %s is not a directory\n", udr_options->server_dir);
-	// 	exit(1);
-	//     }
-
-	//     break;
 	case 'n':
 	    udr_options->encryption = true;
 	    break;
 	case 's':
 	    udr_options->sflag = 1;
-            snprintf(udr_options->port_num, NI_MAXSERV, "%s", optarg);
+        snprintf(udr_options->port_num, NI_MAXSERV, "%s", optarg);
 	    break;
 	case 'l':
-            snprintf(udr_options->username, PATH_MAX, "%s", optarg);
+        snprintf(udr_options->username, PATH_MAX, "%s", optarg);
 	    break;
 	case 'p':
-            snprintf(udr_options->key_filename, PATH_MAX, "%s", optarg);
+        snprintf(udr_options->key_filename, PATH_MAX, "%s", optarg);
 	    break;
 	case 'c':
 	    snprintf(udr_options->udr_program_dest, PATH_MAX, "%s", optarg);
@@ -155,6 +139,12 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 	    }
         else if (strcmp("config", long_options[option_index].name) == 0){
             snprintf(udr_options->server_config, PATH_MAX, "%s", optarg);
+        }
+        else if (strcmp("rsync-uid", long_options[option_index].name) == 0){
+            udr_options->rsync_uid = atoi(optarg);
+        }
+        else if (strcmp("rsync-gid", long_options[option_index].name) == 0){
+            udr_options->rsync_gid = atoi(optarg);
         }
 	    break;
 	default:

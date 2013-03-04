@@ -52,7 +52,7 @@ UDR SERVER
 The UDR server allows UDR transfers for users without accounts, similar to rsync server functionality. The UDR server is written in python, listens on a TCP port and mainly manages launching rsync processes with the "using rsync-daemon features via a remote-shell connection" ability of rsync (see rsync man page for details). The UDR server requies UDR version 0.9.2 or above.
 
 ### Basic server usage:
-    python udrserver.py [-v] [-c configfile] start|stop|restart|foreground
+    python udrserver.py [-v] [-s] [-c configfile] start|stop|restart|foreground
 
 ### UDR server options:
 [-c config file] specify the location of the config file, default is /etc/udrd.conf  
@@ -75,9 +75,15 @@ The UDR server requires a configuration file, by default it looks for /etc/udrd.
 - uid: user name or uid that the server should run as when started as root, default is nobody when run as root
 - gid: group name or gid that the server should run as when started as root, default is nogroup when run as root 
 
-Most standard rsyncd.conf options should work like normal. The uid/gid options will not work and are preempted by the uid/gid options in udrd.conf. The max connections option does not work, but the number of connections can be limited by the range of start and end port in the udrd.conf file because one connection requires one port. For example, if you only want 50 connections, set the start port to 9000 and the end port to 9050. If the max connections option is set, the rsync processes will try to write to the lock file, which they often do not have permission to and will return the error "@ERROR: failed to open lock file". You can set the lock file location in rsyncd.conf or remove the max connections option.
+Most standard rsyncd.conf options should work like normal. Known exceptions are:
 
-WARNING: UDR server has only be tested in read only mode, it is not recommended to enable write access.
+#### Max Connections
+The max connections option does not work, but the number of connections can be limited by the range of start and end port in the udrd.conf file because one connection requires one port. For example, if you only want 50 connections, set the start port to 9000 and the end port to 9050. If the max connections option is set, the rsync processes will try to write to the lock file, which they often do not have permission to and will return the error "@ERROR: failed to open lock file". You can set the lock file location in rsyncd.conf or remove the max connections option.
+
+#### UID/GID and chroot
+It is recommended to not run UDR server as root. In this case, the chroot option will not be available with rsync. If chroot is desired, UDR will parse and use global uid/gid settings in rsyncd.conf if it is run as root. However, it does not currently support different uid/gid for each module.
+
+#### WARNING: UDR server has only be tested in read only mode, it is not recommended to enable write access.
 
 ### Connecting to the UDR server
 To connect to the UDR server, use double colons instead of the single colon, similar to connecting to a rsync daemon. Listing files is also the same as with rsync.

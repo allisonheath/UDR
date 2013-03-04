@@ -45,6 +45,20 @@ class UDRHandler(SocketServer.StreamRequestHandler):
             if self.server.params['verbose']:
                 udr_cmd.append('-v')
 
+            if 'gid' in self.server.rsync_params:
+                udr_cmd.append('--rsync-gid')
+                if not self.server.rsync_params['gid'].isdigit():
+                    udr_cmd.append(str(grp.getgrnam(self.server.rsync_params['gid']).gr_gid))
+                else:
+                    udr_cmd.append(self.server.rsync_params['gid'])
+
+            if 'uid' in self.server.rsync_params:
+                udr_cmd.append('--rsync-uid')
+                if not self.server.rsync_params['uid'].isdigit():
+                    udr_cmd.append(str(pwd.getpwnam(self.server.rsync_params['uid']).pw_uid))
+                else:
+                    udr_cmd.append(self.server.rsync_params['uid'])
+
             udr_cmd.append('-a')
             udr_cmd.append(self.server.params['start port'])
             udr_cmd.append('-b')
@@ -74,7 +88,19 @@ class UDRServer(Daemon, object):
     def __init__(self, configfile, verbose=False):
         self.params = {}
         self.params['verbose'] = verbose
-        self.parse_global_conf(configfile)
+        self.params['udr'] = 'udr'
+        self.params['start port'] = '9000'
+        self.params['end port'] = '9100'
+        self.params['address'] = '0.0.0.0'
+        self.params['server port'] = 9000
+        self.params['rsyncd conf'] = '/etc/rsyncd.conf'
+        self.params['pid file'] = '/var/run/udrd.pid'
+        self.params['log file'] = ''.join([os.getcwd(), '/udr.log'])
+        self.parse_conf(configfile, self.params)
+
+        #check that rsyncd.conf exists, otherwise rsync fails silently
+        self.rsync_params = {}
+        self.parse_conf(self.params['rsyncd conf'], self.rsync_params)
         super(UDRServer, self).__init__(pidfile=self.params['pid file'], stdout=self.params['log file'], stderr=self.params['log file'])
 
     def run(self):
@@ -83,6 +109,7 @@ class UDRServer(Daemon, object):
         SocketServer.TCPServer.allow_reuse_address = True
         server = SocketServer.TCPServer((self.params['address'], int(self.params['server port'])), UDRHandler) 
         server.params = self.params
+        server.rsync_params = self.rsync_params
         logging.debug('params: %s' % str(self.params))
         logging.info('UDR server started on %s %s' % (self.params['address'], self.params['server port']))
         server.serve_forever()
@@ -120,16 +147,7 @@ class UDRServer(Daemon, object):
         if len(lines) > 0:
             yield "".join(lines)
 
-    def parse_global_conf(self, filename):
-        self.params['udr'] = 'udr'
-        self.params['start port'] = '9000'
-        self.params['end port'] = '9100'
-        self.params['address'] = '0.0.0.0'
-        self.params['server port'] = 9000
-        self.params['rsyncd conf'] = '/etc/rsyncd.conf'
-        self.params['pid file'] = '/var/run/udrd.pid'
-        self.params['log file'] = ''.join([os.getcwd(), '/udr.log'])
-
+    def parse_conf(self, filename, param_dict):
         paren_re = re.compile(r'\[(\w+)\]')
         eq_re = re.compile(r'(.+)=(.+)')
 
@@ -148,11 +166,7 @@ class UDRServer(Daemon, object):
             if eq_result is not None:
                 key = eq_result.group(1).strip()
                 value = eq_result.group(2).strip()
-                self.params[key] = value
-
-        #check that rsyncd.conf exists, otherwise rsync fails silently
-        test_rsyncd = open(self.params['rsyncd conf'])
-        test_rsyncd.close()
+                param_dict[key] = value
 
     def config_logger(self):
         logger = logging.getLogger()

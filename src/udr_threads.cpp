@@ -95,7 +95,7 @@ void *handle_to_udt(void *threadarg) {
 	logfile = fopen(filename.c_str(), "w");
     }
     //struct timeval tv;
-    fd_set readfds;
+    //fd_set readfds;
     int bytes_read;
 
     while(true) {
@@ -456,6 +456,14 @@ int run_receiver(UDR_Options * udr_options) {
     int child_to_parent, parent_to_child;
   
     int rsync_pid = fork_execvp(udr_options->shell_program, sh_cmd, &parent_to_child, &child_to_parent);
+
+    //now if we're in server mode need to drop privileges if specified
+    if(udr_options->rsync_gid > 0){
+        setgid(udr_options->rsync_gid);
+    }
+    if(udr_options->rsync_uid > 0){
+        setuid(udr_options->rsync_uid);
+    }
 
     if(udr_options->verbose){
 	    fprintf(stderr, "[udr receiver] rsync pid: %d\n", rsync_pid);

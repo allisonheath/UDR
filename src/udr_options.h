@@ -54,6 +54,9 @@ struct UDR_Options{
     char server_port[NI_MAXSERV+1];
 
     char server_config[PATH_MAX+1];
+
+    uid_t rsync_uid;
+    gid_t rsync_gid;
     
 };
 
