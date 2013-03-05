@@ -81,7 +81,7 @@ Most standard rsyncd.conf options should work like normal. Known exceptions are:
 The max connections option does not work, but the number of connections can be limited by the range of start and end port in the udrd.conf file because one connection requires one port. For example, if you only want 50 connections, set the start port to 9000 and the end port to 9050. If the max connections option is set, the rsync processes will try to write to the lock file, which they often do not have permission to and will return the error "@ERROR: failed to open lock file". You can set the lock file location in rsyncd.conf or remove the max connections option.
 
 #### UID/GID and chroot
-It is recommended to not run UDR server as root. In this case, the chroot option will not be available with rsync. If chroot is desired, UDR will parse and use global uid/gid settings in rsyncd.conf if it is run as root. However, it does not currently support different uid/gid for each module.
+It is not recommended to run UDR server as root. However, then the rsync use chroot option will not be available. If chroot is desired, the uid/gid options in udrd.conf must be explicitly set to root. UDR will then parse and use the global uid/gid settings in rsyncd.conf for spawned subprocesses. However, it does not currently support different uid/gid for each module.
 
 #### WARNING: UDR server has only be tested in read only mode, it is not recommended to enable write access.
 
