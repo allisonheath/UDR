@@ -3,16 +3,16 @@ Copyright 2012 Laboratory for Advanced Computing at the University of Chicago
 
 This file is part of UDR.
 
-Licensed under the Apache License, Version 2.0 (the "License"); 
-you may not use this file except in compliance with the License. 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an "AS IS" BASIS, 
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
-See the License for the specific language governing permissions 
+software distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions
 and limitations under the License.
 *****************************************************************************/
 
@@ -72,9 +72,6 @@ int main(int argc, char* argv[]) {
     use_rsync = 0;
     rsync_arg_idx = -1;
 
-    if (argc < 1)
-        usage();
-
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "rsync") == 0) {
             use_rsync = 1;
@@ -102,8 +99,8 @@ int main(int argc, char* argv[]) {
     }//now for server mode
     //else if (curr_options.server) {
     //    return run_as_server(&curr_options);
-    //} 
-    
+    //}
+
     else if (curr_options.sflag) {
         string arguments = "";
         string sep = " ";
@@ -153,16 +150,16 @@ int main(int argc, char* argv[]) {
 
         if (curr_options.verbose)
             fprintf(stderr, "%s run_sender done\n", curr_options.which_process);
-    } 
+    }
     else {
-        //get the host and username first 
+        //get the host and username first
         get_host_username(&curr_options, argc, argv, rsync_arg_idx);
 
 	    char * udr_cmd = get_udr_cmd(&curr_options);
         if (curr_options.verbose){
             fprintf(stderr, "%s udr_cmd %s\n", curr_options.which_process, udr_cmd);
         }
-       
+
         int line_size = NI_MAXSERV + PASSPHRASE_SIZE * 2 + 1;
         char * line = (char*) malloc(line_size);
         line[0] = '\0';
@@ -232,7 +229,7 @@ int main(int argc, char* argv[]) {
         }
 
         snprintf(curr_options.port_num, PATH_MAX, "%s", strtok(line, " "));
-        
+
         char * hex_pp = strtok(NULL, " ");
 
         if (curr_options.verbose) {
@@ -251,25 +248,25 @@ int main(int argc, char* argv[]) {
             fclose(key_file);
         }
 
-        //make sure the port num str is null terminated 
+        //make sure the port num str is null terminated
         char * ptr;
         if ((ptr = strchr(curr_options.port_num, '\n')) != NULL)
             *ptr = '\0';
 
         int parent_to_child, child_to_parent;
-        
+
         //parse the rsync options
         char ** rsync_argv;
-        
+
         int rsync_argc = argc - rsync_arg_idx + 5; //need more spots
         rsync_argv = (char**) malloc(sizeof (char *) * rsync_argc);
-    
+
         int rsync_idx = 0;
         rsync_argv[rsync_idx] = (char*) malloc(strlen(argv[rsync_arg_idx]) + 1);
         //ok because just malloc'd based on it
         strcpy(rsync_argv[rsync_idx], argv[rsync_arg_idx]);
         rsync_idx++;
-        
+
         rsync_argv[rsync_idx++] = "--blocking-io";
 
         //rsync_argv[rsync_idx++] = curr_options.rsync_timeout;
@@ -289,7 +286,7 @@ int main(int argc, char* argv[]) {
         strcat(udr_rsync_args1, "-s");
 
         const char * udr_rsync_args2 = "-p";
-        
+
         rsync_argv[rsync_idx] = (char*) malloc(strlen(curr_options.udr_program_src) + strlen(udr_rsync_args1) + strlen(curr_options.port_num) + strlen(udr_rsync_args2) + strlen(curr_options.key_filename) + 6);
         sprintf(rsync_argv[rsync_idx], "%s %s %s %s %s", curr_options.udr_program_src, udr_rsync_args1, curr_options.port_num, udr_rsync_args2, curr_options.key_filename);
 
