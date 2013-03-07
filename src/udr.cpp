@@ -68,13 +68,15 @@ void print_version() {
 
 //only going to go from local -> remote and remote -> local, remote <-> remote maybe later, but local -> local doesn't make sense for UDR
 int main(int argc, char* argv[]) {
-    int use_rsync, rsync_arg_idx;
-    use_rsync = 0;
+    int rsync_arg_idx;
+
+    // if we want this to be C #include <stdbool.h>
+    bool use_rsync = false;
     rsync_arg_idx = -1;
 
-    for (int i = 0; i < argc; i++) {
+    for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "rsync") == 0) {
-            use_rsync = 1;
+            use_rsync = true;
             rsync_arg_idx = i;
             break;
         }
@@ -86,6 +88,7 @@ int main(int argc, char* argv[]) {
 
     //now get the options using udr_options.
     struct UDR_Options curr_options;
+
     get_udr_options(&curr_options, argc, argv, rsync_arg_idx);
 
     if (curr_options.version_flag)
