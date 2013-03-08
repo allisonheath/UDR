@@ -74,6 +74,7 @@ int main(int argc, char* argv[]) {
     bool use_rsync = false;
     rsync_arg_idx = -1;
 
+    // argv[0] should always be "udr" hence starting at 1
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "rsync") == 0) {
             use_rsync = true;

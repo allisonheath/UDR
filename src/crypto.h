@@ -3,16 +3,16 @@ Copyright 2012 Laboratory for Advanced Computing at the University of Chicago
 
 This file is part of UDR.
 
-Licensed under the Apache License, Version 2.0 (the "License"); 
-you may not use this file except in compliance with the License. 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an "AS IS" BASIS, 
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
-See the License for the specific language governing permissions 
+software distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions
 and limitations under the License.
 *****************************************************************************/
 #ifndef CRYPTO_H
@@ -25,6 +25,7 @@ and limitations under the License.
 #include <stdlib.h>
 #include <string.h>
 #include <openssl/blowfish.h>
+#include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <limits.h>
 #include <iostream>
@@ -38,6 +39,10 @@ private:
   unsigned char ivec[ 1024 ];
   int direction;
   int num;
+
+    // EVP stuff
+    EVP_CIPHER_CTX ctx;
+
 
 char *getPassphrase(char *filename)
 {
@@ -58,23 +63,33 @@ void free_key( char *key )
 }
 
 public:
-  
+
  crypto( int direc, int len, unsigned char* password)
   {
-    BF_set_key( &key , len , (unsigned char *) password );
+    //BF_set_key( &key , len , (unsigned char *) password );
     //free_key( password ); can't free here because is reused by threads
 
     memset( ivec , 0 , 1024 );
     num = 0;
     direction = direc;
+        // EVP stuff
+        EVP_CIPHER_CTX_init(&ctx);
+        EVP_CipherInit_ex(&ctx, EVP_bf_cfb64(), NULL, NULL, NULL, direc);
+        EVP_CIPHER_CTX_set_padding(&ctx, 0);
+        EVP_CIPHER_CTX_set_key_length(&ctx, len);
+        /* We finished modifying parameters so now we can set key and IV */
+        EVP_CipherInit_ex(&ctx, NULL, NULL, password, ivec, direc);
   }
-  
-  void encrypt( char *in , char *out , int len )
+
+  void encrypt(char *in, char *out, int len)
   {
     //memcpy( out , in , len );
-    BF_cfb64_encrypt( (unsigned char *) in, (unsigned char *) out, len , &key , ivec , &num , direction );
+
+    //BF_cfb64_encrypt( (unsigned char *) in, (unsigned char *) out, len , &key , ivec , &num , direction );
+    int evp_outlen;
+    EVP_CipherUpdate(&ctx, (unsigned char *)out, &evp_outlen, (unsigned char *)in, len);
   }
-  
+
 };
 
 #endif
