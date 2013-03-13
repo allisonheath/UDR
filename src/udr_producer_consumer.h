@@ -23,8 +23,8 @@ and limitations under the License.
 
 struct ProducerConsumerContext{
     // synchronization
-    pthread_cond_t* send_wait;
-    pthread_cond_t* encrypt_wait;
+    pthread_cond_t* consumer_wait;
+    pthread_cond_t* producer_wait;
     pthread_mutex_t* mutex;
 
     bool ready_to_read;
@@ -43,8 +43,7 @@ struct ProducerConsumerContext{
 
 void* run_threaded_encryption(crypto *crypt, int fd, UDTSOCKET * udt_socket);
 
-void* encrypt_thread(void*);
+void* run_threaded_decryption(crypto *crypt, int fd, UDTSOCKET * udt_socket);
 
-void* send_thread(void*);
 
 #endif

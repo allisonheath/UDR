@@ -114,10 +114,22 @@ void *handle_to_udt(void *threadarg) {
 
 void *udt_to_handle(void *threadarg) {
     struct thread_data *my_args = (struct thread_data *) threadarg;
-    char indata[max_block_size];
-    char outdata[max_block_size];
+
+    if (my_args->crypt != NULL) {
+        //log_set_maximum_verbosity(LOG_DEBUG);
+        log_print(LOG_DEBUG, "im ready to read...\n");
+        run_threaded_decryption(my_args->crypt, my_args->fd,
+            my_args->udt_socket);
+
+        my_args->is_complete = true;
+
+        return NULL;
+    }
+
 
     while(true) {
+        char indata[max_block_size];
+        char outdata[max_block_size];
         int rs;
 
         log_print(LOG_DEBUG, "%d: Should now be receiving from udt...\n", my_args->id);
