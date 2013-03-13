@@ -20,13 +20,16 @@ and limitations under the License.
 
 #define PASSPHRASE_SIZE 32
 #define HEX_PASSPHRASE_SIZE 64
+#define EVP_ENCRYPT 1
+#define EVP_DECRYPT 0
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <openssl/blowfish.h>
+//#include <openssl/blowfish.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <openssl/err.h>
 #include <limits.h>
 #include <iostream>
 
@@ -35,10 +38,10 @@ using namespace std;
 class crypto
 {
 private:
-  BF_KEY key;
+  //BF_KEY key;
   unsigned char ivec[ 1024 ];
   int direction;
-  int num;
+  //int num;
 
     // EVP stuff
     EVP_CIPHER_CTX ctx;
@@ -70,15 +73,29 @@ public:
     //free_key( password ); can't free here because is reused by threads
 
     memset( ivec , 0 , 1024 );
-    num = 0;
+    //num = 0;
     direction = direc;
         // EVP stuff
         EVP_CIPHER_CTX_init(&ctx);
-        EVP_CipherInit_ex(&ctx, EVP_bf_cfb64(), NULL, NULL, NULL, direc);
-        EVP_CIPHER_CTX_set_padding(&ctx, 0);
-        EVP_CIPHER_CTX_set_key_length(&ctx, len);
+        //EVP_CipherInit_ex(&ctx, EVP_bf_cfb64(), NULL, NULL, NULL, direc);
+        if (!EVP_CipherInit_ex(&ctx, EVP_bf_cfb64(), NULL, NULL, NULL, direc)) {
+            fprintf(stderr, "error setting encryption scheme\n");
+            exit(EXIT_FAILURE);
+        }
+        if (!EVP_CIPHER_CTX_set_padding(&ctx, 0)){
+            fprintf(stderr, "error setting padding\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (!EVP_CIPHER_CTX_set_key_length(&ctx, len)){
+            fprintf(stderr, "error setting key length\n");
+            exit(EXIT_FAILURE);
+        }
         /* We finished modifying parameters so now we can set key and IV */
-        EVP_CipherInit_ex(&ctx, NULL, NULL, password, ivec, direc);
+        if (!EVP_CipherInit_ex(&ctx, NULL, NULL, password, ivec, direc)){
+            fprintf(stderr, "error setting password\n");
+            exit(EXIT_FAILURE);
+        }
   }
 
   void encrypt(char *in, char *out, int len)
@@ -87,7 +104,11 @@ public:
 
     //BF_cfb64_encrypt( (unsigned char *) in, (unsigned char *) out, len , &key , ivec , &num , direction );
     int evp_outlen;
-    EVP_CipherUpdate(&ctx, (unsigned char *)out, &evp_outlen, (unsigned char *)in, len);
+    if(!EVP_CipherUpdate(&ctx, (unsigned char *)out, &evp_outlen, (unsigned char *)in, len))
+    {
+        fprintf(stderr, "encryption error\n");
+        exit(EXIT_FAILURE);
+    }
   }
 
 };

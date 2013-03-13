@@ -21,6 +21,7 @@ udt/app/appserver
 udt/app/recvfile
 udt/app/sendfile
 udt/app/test
+udt/src/udt
 
 #server
 *.pyc
@@ -35,3 +36,6 @@ server/.venv2.6
 
 # Emacs files
 *~
+
+# Vim files 
+*.swp
