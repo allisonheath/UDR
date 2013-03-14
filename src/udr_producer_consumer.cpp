@@ -34,12 +34,16 @@ void* run_threaded_cryption(crypto *crypt, int fd, UDTSOCKET * udt_socket,
     context.udt_socket = udt_socket;
     context.crypt = crypt;
 
+    context.writable = context.data;
+    context.readable = context.data + max_block_size;
+
     pthread_cond_init(context.producer_wait, NULL);
     pthread_cond_init(context.consumer_wait, NULL);
     pthread_mutex_init(context.mutex, NULL);
 
     pthread_t prod;
     pthread_t cons;
+
 
     if (pthread_create(&prod, NULL, producer, (void*)&context) != 0) {
         fprintf(stderr, "couldn't create producer thread");
@@ -64,11 +68,16 @@ void* run_threaded_cryption(crypto *crypt, int fd, UDTSOCKET * udt_socket,
     free(context.mutex);
 }
 
+void buffer_swap(ProducerConsumerContext *context)
+{
+    char * temp = context->readable;
+    context->readable = context->writable;
+    context->writable = temp;
+}
+
 void* encrypt_thread(void* _context)
 {
-
     char indata[max_block_size];
-    char outdata[max_block_size];
 
     int bytes_read;
 
@@ -89,11 +98,9 @@ void* encrypt_thread(void* _context)
             return NULL;
         }
 
-        context->crypt->encrypt(indata, outdata, bytes_read);
+        context->crypt->encrypt(indata, context->writable, bytes_read);
 
         context->bytes_read = bytes_read;
-
-        memcpy(context->data, outdata, bytes_read);
 
         context->ready_to_write = true;
         pthread_cond_signal(context->consumer_wait);
@@ -114,7 +121,6 @@ void* send_thread(void* _context)
         (struct ProducerConsumerContext*)_context;
 
     while (true) {
-        char outdata[max_block_size];
         int ss;
         int ssize = 0;
         pthread_mutex_lock(context->mutex);
@@ -129,14 +135,16 @@ void* send_thread(void* _context)
             return NULL;
         }
 
-        memcpy(outdata, context->data, bytes_read);
+        //memcpy(outdata, context->data, bytes_read);
+        buffer_swap(context);
+
         context->ready_to_read = true;
         pthread_cond_signal(context->producer_wait);
 
         while(ssize < bytes_read) {
 
             if (UDT::ERROR == (ss = UDT::send(*context->udt_socket,
-                    outdata + ssize, bytes_read - ssize, 0)))
+                    context->readable + ssize, bytes_read - ssize, 0)))
                 return NULL;
             ssize += ss;
         }
@@ -151,11 +159,9 @@ void* recv_thread(void* _context)
     context->ready_to_read = false;
 
     while (true) {
-        char indata[max_block_size];
-
         int bytes_read;
 
-        if (UDT::ERROR == (bytes_read = UDT::recv(*context->udt_socket, indata, max_block_size, 0))) {
+        if (UDT::ERROR == (bytes_read = UDT::recv(*context->udt_socket, context->writable, max_block_size, 0))) {
             context->bytes_read = bytes_read;
             context->ready_to_write = true;
             pthread_cond_signal(context->consumer_wait);
@@ -165,8 +171,6 @@ void* recv_thread(void* _context)
         context->bytes_read = bytes_read;
         log_print(LOG_DEBUG, "got %d bytes in recv_thread\n", bytes_read);
 
-        memcpy(context->data, indata, bytes_read);
-
         context->ready_to_write = true;
         pthread_cond_signal(context->consumer_wait);
 
@@ -175,7 +179,6 @@ void* recv_thread(void* _context)
             pthread_cond_wait(context->producer_wait, context->mutex);
         context->ready_to_read = false;
         pthread_mutex_unlock(context->mutex);
-
     }
 }
 
@@ -186,7 +189,6 @@ void* decrypt_thread(void* _context)
 
     context->ready_to_write = false;
     while (true) {
-        char indata[max_block_size];
         char outdata[max_block_size];
 
         pthread_mutex_lock(context->mutex);
@@ -202,14 +204,14 @@ void* decrypt_thread(void* _context)
             return NULL;
         }
 
-        memcpy(indata, context->data, bytes_read);
+        buffer_swap(context);
+
         context->ready_to_read = true;
         pthread_cond_signal(context->producer_wait);
 
-        context->crypt->encrypt(indata, outdata, bytes_read);
+        context->crypt->encrypt(context->readable, outdata, bytes_read);
 
         int written_bytes = write(context->fd, outdata, bytes_read);
-
     }
 }
 
