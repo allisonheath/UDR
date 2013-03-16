@@ -3,16 +3,16 @@ Copyright 2012 Laboratory for Advanced Computing at the University of Chicago
 
 This file is part of UDR.
 
-Licensed under the Apache License, Version 2.0 (the "License"); 
-you may not use this file except in compliance with the License. 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an "AS IS" BASIS, 
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
-See the License for the specific language governing permissions 
+software distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions
 and limitations under the License.
 **********************[*******************************************************/
 
@@ -29,7 +29,7 @@ and limitations under the License.
 using namespace std;
 
 void usage() {
-    fprintf(stderr, "usage: udr [-n] [-v] [-a starting port number] [-b ending port number] [-c remote udr location] rsync [rsync options]\n");
+    fprintf(stderr, "usage: udr [-n aes-128 | bf | des-ede3] [-v] [-a starting port number] [-b ending port number] [-c remote udr location] rsync [rsync options]\n");
     exit(1);
 }
 
@@ -53,7 +53,7 @@ void set_default_udr_options(UDR_Options * options) {
     snprintf(options->shell_program, PATH_MAX, "%s", "sh");
     snprintf(options->key_base_filename, PATH_MAX, "%s", ".udr_key");
     options->key_filename[0] = '\0';
-    
+
     options->host[0] = '\0';
     options->username[0] = '\0';
     options->which_process[0] = '\0';
@@ -61,6 +61,8 @@ void set_default_udr_options(UDR_Options * options) {
     options->server_dir[0] = '\0';
     options->server_config[0] = '\0';
     snprintf(options->server_port, PATH_MAX, "%s", "9000");
+
+    //snprintf(options->encryption_type, PATH_MAX, "%s", "aes-128");
 
     options->rsync_uid = 0;
     options->rsync_gid = 0;
@@ -71,7 +73,7 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
     char *key_dir = NULL;
 
     set_default_udr_options(udr_options);
-        
+
     snprintf(udr_options->udr_program_src, PATH_MAX, "%s", argv[0]);
 
     static struct option long_options[] = {
@@ -81,7 +83,7 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
         {"end-port", required_argument, NULL, 'b'},
         {"receiver", no_argument, NULL, 't'},
         {"server", required_argument, NULL, 'd'},
-        {"encrypt", no_argument, NULL, 'n'},
+        {"encrypt", required_argument, NULL, 'n'},
         {"sender", no_argument, NULL, 's'},
         {"login-name", required_argument, NULL, 'l'},
         {"keyfile", required_argument, NULL, 'p'},
@@ -96,7 +98,7 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 
     int option_index = 0;
 
-    while ((ch = getopt_long(rsync_arg_idx, argv, "tlnvxa:b:s:h:p:c:k:o:", long_options, &option_index)) != -1)
+    while ((ch = getopt_long(rsync_arg_idx, argv, "tlvxa:b:n:s:h:p:c:k:o:", long_options, &option_index)) != -1)
         switch (ch) {
 	case 'a':
 	    udr_options->start_port = atoi(optarg);
@@ -109,6 +111,7 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 	    break;
 	case 'n':
 	    udr_options->encryption = true;
+        snprintf(udr_options->encryption_type, PATH_MAX, "%s", optarg);
 	    break;
 	case 's':
 	    udr_options->sflag = 1;
@@ -187,81 +190,81 @@ void parse_host_username(char * source, char * username, char * host, bool * dou
     char * at_loc = strchr(source, '@');
     int username_len, host_len;
     username_len = host_len = 0;
-    
+
     if(colon_loc == NULL){
         return;
     }
-    
+
     if(colon_loc[1] == ':'){
         *double_colon = true;
     }
-    
+
     //probably should check lengths here?
     if (at_loc != NULL){
 //        fprintf(stderr, "at_loc: %d\n", at_loc);
         host_len = colon_loc - at_loc;
 //        fprintf(stderr, "host_len: %d\n", host_len);
-        
+
         //for now just set to PATH_MAX if greater -- but perhaps should throw an error? really shouldn't happen unless something bad is happening.
         if(host_len > PATH_MAX)
             host_len = PATH_MAX;
-        
+
         strncpy(host, at_loc+1, host_len-1);
         host[host_len-1] = '\0';
 //        fprintf(stderr, "host_len: %d host: %s\n", host_len, host);
-        
+
 //        fprintf(stderr, "at_loc is not null\n");
         username_len = at_loc - source + 1;
-        
+
         if(username_len > PATH_MAX)
             username_len = PATH_MAX;
-        
+
         strncpy(username, source, username_len-1);
         username[username_len-1] = '\0';
-        
+
 //        fprintf(stderr, "username_len: %d username: %s\n", username_len, username);
-      
+
     }
     else{
         host_len = colon_loc - source + 1;
         if(host_len > PATH_MAX)
             host_len = PATH_MAX;
-        
+
         strncpy(host, source, host_len-1);
         host[host_len-1] = '\0';
 //        fprintf(stderr, "host_len: %d host: %s\n", host_len, host);;
     }
-    
+
 }
 
-//Gets the host and username by parsing the rsync options 
+//Gets the host and username by parsing the rsync options
 void get_host_username(UDR_Options * udr_options, int argc, char *argv[], int rsync_arg_idx){
     bool src_remote = true;
     bool dest_remote = true;
-    
+
     //destination is always the last one
     char dest_username[PATH_MAX+1];
     char dest_host[PATH_MAX+1];
     bool dest_double_colon = false;
     dest_username[0] = '\0';
     dest_host[0] = '\0';
-    
+
     char next_src_username[PATH_MAX+1];
     char next_src_host[PATH_MAX+1];
     bool next_src_double_colon = false;
     next_src_username[0] = '\0';
     next_src_host[0] = '\0';
-    
+
     char src_username[PATH_MAX+1];
     char src_host[PATH_MAX+1];
     bool src_double_colon = false;
     src_username[0] = '\0';
     src_host[0] = '\0';
-    
+
     int src_username_len, src_host_len, dest_username_len, dest_host_len;
-    
+
     char * dest = argv[argc-1];
-    
+
     //go backwards until find first option, we'll call those the source
     int src_num = 0;
     for(int i = argc-2; i > rsync_arg_idx; i--){
@@ -292,38 +295,38 @@ void get_host_username(UDR_Options * udr_options, int argc, char *argv[], int rs
             src_num++;
         }
     }
-    
-    
+
+
 //    fprintf(stderr, "src_username: %s src_host: %s\n", src_username, src_host);
-    
+
     if(strlen(src_host) == 0){
         src_remote = false;
     }
-    
+
 //    fprintf(stderr, "dest: %s\n", dest);
     parse_host_username(dest, dest_username, dest_host, &dest_double_colon);
-    
+
 //    fprintf(stderr, "dest_username: %s dest_host: %s\n", dest_username, dest_host);
-    
+
     if(strlen(dest_host) == 0){
         dest_remote = false;
     }
-    
+
 //    fprintf(stderr, "src_remote: %d dest_remote: %d\n", src_remote, dest_remote);
-    
+
     if(src_remote == dest_remote){
         fprintf(stderr, "UDR ERROR: UDR only does remote -> local or local -> remote transfers\n");
         exit(-1);
     }
-    
+
     if(src_remote){
         snprintf(udr_options->host, PATH_MAX, "%s", src_host);
         snprintf(udr_options->username, PATH_MAX, "%s", src_username);
-        udr_options->server_connect = src_double_colon;        
+        udr_options->server_connect = src_double_colon;
     }
     else{
         snprintf(udr_options->host, PATH_MAX, "%s", dest_host);
         snprintf(udr_options->username, PATH_MAX, "%s", dest_username);
         udr_options->server_connect = dest_double_colon;
     }
-} 
+}

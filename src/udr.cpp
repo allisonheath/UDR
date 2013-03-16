@@ -41,8 +41,11 @@ using namespace std;
 
 char * get_udr_cmd(UDR_Options * udr_options) {
     char udr_args[PATH_MAX];
-    if (udr_options->encryption)
+    if (udr_options->encryption) {
         strcpy(udr_args, "-n ");
+        strcat(udr_args, udr_options->encryption_type);
+        strcat(udr_args, " ");
+    }
     else
         udr_args[0] = '\0';
 
@@ -279,8 +282,11 @@ int main(int argc, char* argv[]) {
 
         char udr_rsync_args1[100];
 
-        if (curr_options.encryption)
+        if (curr_options.encryption) {
             strcpy(udr_rsync_args1, "-n ");
+            strcat(udr_rsync_args1, curr_options.encryption_type);
+            strcat(udr_rsync_args1, " ");
+        }
         else
             udr_rsync_args1[0] = '\0';
 

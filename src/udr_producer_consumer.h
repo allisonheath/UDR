@@ -21,32 +21,65 @@ and limitations under the License.
 
 #include "udr_threads.h"
 
-struct ProducerConsumerContext{
-    // synchronization
-    pthread_cond_t* consumer_wait;
-    pthread_cond_t* producer_wait;
-    pthread_mutex_t* mutex;
+#define num_encryption_threads 3
 
-    bool ready_to_read;
-    bool ready_to_write;
+struct sender_context {
+    char *outdata;
 
-    // data buffer
-    char data[2 * max_block_size];
-    char * readable;
-    char * writable;
-    //char read_data[max_block_size];
+    int *bytes_read;
+
+    pthread_cond_t wait;
+    pthread_cond_t done;
+
+    pthread_mutex_t wait_mutex;
+    pthread_mutex_t done_mutex;
+
+    bool readable;
+    bool writable;
+};
+
+struct encrypter_context {
+    char plain[max_block_size];
+    char encrypted[max_block_size];
+
+    crypto *crypt;
+
     int bytes_read;
 
-    // copied over from udr_threads
-    crypto *crypt;
-    int fd;
-    UDTSOCKET * udt_socket;
+    bool ready_to_encrypt;
 
+    pthread_mutex_t mutex;
+    pthread_cond_t encrypt_wait;
+
+    pthread_cond_t *send_wait;
+
+    bool *readable;
+};
+
+struct read_args {
+    struct sender_context *sender_info;
+    int num_threads;
+
+    struct encrypter_context *encrypters;
+
+    int fd;
+
+    // syncronization info to prevent looping while all encryption
+    // threads are occupied
+    pthread_mutex_t mutex;
+    pthread_cond_t wait;
+};
+
+struct send_args {
+    struct sender_context *sender_info;
+    int num_threads;
+
+    UDTSOCKET * udt_socket;
 };
 
 void* run_threaded_encryption(crypto *crypt, int fd, UDTSOCKET * udt_socket);
 
-void* run_threaded_decryption(crypto *crypt, int fd, UDTSOCKET * udt_socket);
+//void* run_threaded_decryption(crypto *crypt, int fd, UDTSOCKET * udt_socket);
 
 
 #endif

@@ -70,16 +70,49 @@ void *handle_to_udt(void *threadarg) {
     struct thread_data *my_args = (struct thread_data *) threadarg;
 
     if (my_args->crypt != NULL) {
-        run_threaded_encryption(my_args->crypt, my_args->fd,
-            my_args->udt_socket);
+//        log_set_maximum_verbosity(LOG_DEBUG);
+//        run_threaded_encryption(my_args->crypt, my_args->fd,
+//            my_args->udt_socket);
+//
+//        my_args->is_complete = true;
 
-        my_args->is_complete = true;
+//        return NULL;
 
-        return NULL;
+        while (true) {
+            char indata[max_block_size];
+            char outdata[max_block_size];
+            int bytes_read;
+            int ss;
+
+            log_print(LOG_DEBUG, "%d: Should be reading from process...\n", my_args->id);
+            //using select because only checking stdin and is more portable
+            bytes_read = read(my_args->fd, indata, max_block_size);
+
+            if (bytes_read <= 0) {
+                log_print(LOG_DEBUG, "%d Got %d bytes_read, exiting\n", my_args->id, bytes_read);
+                if (bytes_read < 0)
+                    log_print(LOG_DEBUG, "Error: bytes_read %d %s\n", bytes_read, strerror(errno));
+                my_args->is_complete = true;
+                return NULL;
+            }
+
+            my_args->crypt->encrypt(indata, outdata, bytes_read);
+
+            int ssize = 0;
+            while (ssize < bytes_read) {
+                if (UDT::ERROR == (ss = UDT::send(*my_args->udt_socket, outdata + ssize, bytes_read - ssize, 0))) {
+                    log_print(LOG_DEBUG, "%d send error: %s\n", my_args->id, UDT::getlasterror().getErrorMessage());
+                    my_args->is_complete = true;
+                    return NULL;
+                }
+
+                ssize += ss;
+                log_print(LOG_DEBUG, "%d sender on socket %d bytes read: %d ssize: %d\n", my_args->id, *my_args->udt_socket, bytes_read, ssize);
+            }
+        }
     }
 
     while (true) {
-        char indata[max_block_size];
         char outdata[max_block_size];
         int bytes_read;
         int ss;
@@ -114,50 +147,96 @@ void *handle_to_udt(void *threadarg) {
 
 void *udt_to_handle(void *threadarg) {
     struct thread_data *my_args = (struct thread_data *) threadarg;
-
-    if (my_args->crypt != NULL) {
-        //log_set_maximum_verbosity(LOG_DEBUG);
-        log_print(LOG_DEBUG, "im ready to read...\n");
-        run_threaded_decryption(my_args->crypt, my_args->fd,
-            my_args->udt_socket);
-
-        my_args->is_complete = true;
-
-        return NULL;
-    }
+    char indata[max_block_size];
+    char outdata[max_block_size];
 
 
     while(true) {
-        char indata[max_block_size];
-        char outdata[max_block_size];
-        int rs;
+    int rs;
 
+    if(my_args->log) {
         log_print(LOG_DEBUG, "%d: Should now be receiving from udt...\n", my_args->id);
-
-        if (UDT::ERROR == (rs = UDT::recv(*my_args->udt_socket, indata, max_block_size, 0))) {
-            log_print(LOG_DEBUG, "%d recv error: %s\n", my_args->id, UDT::getlasterror().getErrorMessage());
-            my_args->is_complete = true;
-            return NULL;
-        }
-
-        int written_bytes;
-        if(my_args->crypt != NULL) {
-            my_args->crypt->encrypt(indata, outdata, rs);
-            written_bytes = write(my_args->fd, outdata, rs);
-        }
-        else {
-            written_bytes = write(my_args->fd, indata, rs);
-        }
-
-         log_print(LOG_DEBUG, "%d recv on socket %d rs: %d written bytes: %d\n", my_args->id, *my_args->udt_socket, rs, written_bytes);
-
-        if(written_bytes < 0) {
-            log_print(LOG_DEBUG, "Error: written_bytes: %d %s\n", written_bytes, strerror(errno));
-            my_args->is_complete = true;
-            return NULL;
-        }
     }
+
+    if (UDT::ERROR == (rs = UDT::recv(*my_args->udt_socket, indata, max_block_size, 0))) {
+        if(my_args->log){
+        log_print(LOG_DEBUG, "%d recv error: %s\n", my_args->id, UDT::getlasterror().getErrorMessage());
+        }
+        my_args->is_complete = true;
+        return NULL;
+    }
+
+    int written_bytes;
+    if(my_args->crypt != NULL) {
+        my_args->crypt->encrypt(indata, outdata, rs);
+        written_bytes = write(my_args->fd, outdata, rs);
+    }
+    else {
+        written_bytes = write(my_args->fd, indata, rs);
+    }
+
+    if(my_args->log) {
+        log_print(LOG_DEBUG, "%d recv on socket %d rs: %d written bytes: %d\n", my_args->id, *my_args->udt_socket, rs, written_bytes);
+    }
+
+    if(written_bytes < 0) {
+        if(my_args->log){
+        log_print(LOG_DEBUG, "Error: written_bytes: %d %s\n", written_bytes, strerror(errno));
+        }
+        my_args->is_complete = true;
+        return NULL;
+    }
+    }
+    my_args->is_complete = true;
 }
+
+
+//void *udt_to_handle(void *threadarg) {
+//    struct thread_data *my_args = (struct thread_data *) threadarg;
+//
+//    if (my_args->crypt != NULL) {
+//        //log_set_maximum_verbosity(LOG_DEBUG);
+//        log_print(LOG_DEBUG, "im ready to read...\n");
+//        run_threaded_decryption(my_args->crypt, my_args->fd,
+//            my_args->udt_socket);
+//
+//        my_args->is_complete = true;
+//
+//        return NULL;
+//    }
+//
+//
+//    while(true) {
+//        char indata[max_block_size];
+//        char outdata[max_block_size];
+//        int rs;
+//
+//        log_print(LOG_DEBUG, "%d: Should now be receiving from udt...\n", my_args->id);
+//
+//        if (UDT::ERROR == (rs = UDT::recv(*my_args->udt_socket, indata, max_block_size, 0))) {
+//            log_print(LOG_DEBUG, "%d recv error: %s\n", my_args->id, UDT::getlasterror().getErrorMessage());
+//            my_args->is_complete = true;
+//            return NULL;
+//        }
+//
+//        int written_bytes;
+//        if(my_args->crypt != NULL) {
+//            my_args->crypt->encrypt(indata, outdata, rs);
+//            written_bytes = write(my_args->fd, outdata, rs);
+//        }
+//        else {
+//            written_bytes = write(my_args->fd, indata, rs);
+//        }
+//
+//         log_print(LOG_DEBUG, "%d recv on socket %d rs: %d written bytes: %d\n", my_args->id, *my_args->udt_socket, rs, written_bytes);
+//
+//        if(written_bytes < 0) {
+//            log_print(LOG_DEBUG, "Error: written_bytes: %d %s\n", written_bytes, strerror(errno));
+//            my_args->is_complete = true;
+//            return NULL;
+//        }
+//    }
+//}
 
 
 int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char* cmd, int argc, char ** argv) {
@@ -229,8 +308,10 @@ int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char
     udt_to_sender.is_complete = false;
 
     if(udr_options->encryption){
-        crypto encrypt(EVP_ENCRYPT, PASSPHRASE_SIZE, (unsigned char *) passphrase);
-        crypto decrypt(EVP_DECRYPT, PASSPHRASE_SIZE, (unsigned char *) passphrase);
+        crypto encrypt(EVP_ENCRYPT, PASSPHRASE_SIZE, (unsigned char *)passphrase,
+            udr_options->encryption_type);
+        crypto decrypt(EVP_DECRYPT, PASSPHRASE_SIZE, (unsigned char *)passphrase,
+            udr_options->encryption_type);
         // free_key(passphrase);
         sender_to_udt.crypt = &encrypt;
         udt_to_sender.crypt = &decrypt;
@@ -412,8 +493,10 @@ int run_receiver(UDR_Options * udr_options) {
     udt_to_recv.is_complete = false;
 
     if(udr_options->encryption){
-        crypto encrypt(EVP_ENCRYPT, PASSPHRASE_SIZE, rand_pp);
-        crypto decrypt(EVP_DECRYPT, PASSPHRASE_SIZE, rand_pp);
+        crypto encrypt(EVP_ENCRYPT, PASSPHRASE_SIZE, rand_pp,
+            udr_options->encryption_type);
+        crypto decrypt(EVP_DECRYPT, PASSPHRASE_SIZE, rand_pp,
+            udr_options->encryption_type);
         recv_to_udt.crypt = &encrypt;
         udt_to_recv.crypt = &decrypt;
     }
