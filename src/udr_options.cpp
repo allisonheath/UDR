@@ -29,7 +29,7 @@ and limitations under the License.
 using namespace std;
 
 void usage() {
-    fprintf(stderr, "usage: udr [-n aes-128 | bf | des-ede3] [-v] [-a starting port number] [-b ending port number] [-c remote udr location] rsync [rsync options]\n");
+    fprintf(stderr, "usage: udr [-n aes-128 | aes-192 | aes-256 | bf | des-ede3] [-v] [-a starting port number] [-b ending port number] [-c remote udr location] rsync [rsync options]\n");
     exit(1);
 }
 

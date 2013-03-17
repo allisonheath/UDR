@@ -22,6 +22,7 @@ and limitations under the License.
 #define HEX_PASSPHRASE_SIZE 64
 #define EVP_ENCRYPT 1
 #define EVP_DECRYPT 0
+#define CTR_MODE 1
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,18 +62,38 @@ public:
 
         if (strncmp("aes-128", encryption_type, 8) == 0) {
             log_print(LOG_DEBUG, "using aes-128 encryption\n");
-            cipher = EVP_aes_128_cfb();
+            if (CTR_MODE)
+                cipher = EVP_aes_128_ctr();
+            else
+                cipher = EVP_aes_128_cfb();
+        }
+        else if (strncmp("aes-192", encryption_type, 8) == 0) {
+            log_print(LOG_DEBUG, "using aes-192 encryption\n");
+            if (CTR_MODE)
+                cipher = EVP_aes_192_ctr();
+            else
+                cipher = EVP_aes_192_cfb();
         }
         else if (strncmp("aes-256", encryption_type, 8) == 0) {
             log_print(LOG_DEBUG, "using aes-256 encryption\n");
-            cipher = EVP_aes_256_cfb();
+            if (CTR_MODE)
+                cipher = EVP_aes_256_ctr();
+            else
+                cipher = EVP_aes_256_cfb();
         }
         else if (strncmp("des-ede3", encryption_type, 9) == 0) {
-            cipher = EVP_des_ede3_cfb();
+        // apparently there is no 3des nor bf ctr
+//            if (CTR_MODE)
+//                cipher = EVP_des_ede3_ctr();
+//            else
+                cipher = EVP_des_ede3_cfb();
             log_print(LOG_DEBUG, "using des-ede3 encryption\n");
         }
         else if (strncmp("bf", encryption_type, 3) == 0) {
-            cipher = EVP_bf_cfb();
+//            if (CTR_MODE)
+//                cipher = EVP_bf_ctr();
+//            else
+                cipher = EVP_bf_cfb();
             log_print(LOG_DEBUG, "using blowfish encryption\n");
         }
         else {
