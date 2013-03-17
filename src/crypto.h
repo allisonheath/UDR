@@ -55,13 +55,17 @@ public:
         //free_key( password ); can't free here because is reused by threads
         const EVP_CIPHER *cipher;
 
-        //aes-128|bf|des-ede3
+        //aes-128|aes-256|bf|des-ede3
         //log_set_maximum_verbosity(LOG_DEBUG);
         log_print(LOG_DEBUG, "encryption type %s\n", encryption_type);
 
         if (strncmp("aes-128", encryption_type, 8) == 0) {
             log_print(LOG_DEBUG, "using aes-128 encryption\n");
             cipher = EVP_aes_128_cfb();
+        }
+        else if (strncmp("aes-256", encryption_type, 8) == 0) {
+            log_print(LOG_DEBUG, "using aes-256 encryption\n");
+            cipher = EVP_aes_256_cfb();
         }
         else if (strncmp("des-ede3", encryption_type, 9) == 0) {
             cipher = EVP_des_ede3_cfb();
