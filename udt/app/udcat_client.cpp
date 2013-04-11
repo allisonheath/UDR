@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
 
     freeaddrinfo(peer);
 
-    size_t buf_size = 100000;
+    size_t buf_size = BUF_SIZE;
     int size;
     char* data = NULL;
 
