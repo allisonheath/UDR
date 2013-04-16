@@ -195,6 +195,14 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
         if (!is_server && line_size == 0) {
             //line_size = getline(&line, &bufsiz, stdin);
             line_size = read(in_out_file, line, bufsiz);
+            if (line_size == 0) {
+                fprintf(stderr, "flushing\n");
+                BIO_shutdown_wr(s_ssl_bio);
+            }
+            if (line_size < 0) {
+                fprintf(stderr, "Problem reading from fd\n");
+                BIO_shutdown_wr(s_ssl_bio);
+            }
         }
 
         if (line_size > 0) {
@@ -261,7 +269,7 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
         }
 
         {
-            char sbuf[BUF_SIZE]; // think about this size
+            char sbuf[BUF_SIZE];
 
             r = BIO_read(s_ssl_bio, sbuf, sizeof(sbuf));
             if (r < 0) {
@@ -286,8 +294,6 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
             int r;
 
             to_send = num = BIO_ctrl_pending(server_io);
-            // we have no clue how much we can write we just want
-            // to send it and see what happens
 
             if (num)
             {
@@ -297,15 +303,15 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
                     num = INT_MAX;
 
                 r = BIO_nread(server_io, &dataptr, (int)num);
-                assert(r > 0);
-                assert(r <= (int)num);
+                assert((r > 0 && r <= (int)num));
                 num = r;
 
                 while (ssize < num) {
                     int ss;
                     if (UDT::ERROR == (ss = UDT::send(recver, dataptr + ssize,
                         num - ssize, 0))) {
-                        fprintf(stderr, "send: %s\n", UDT::getlasterror().getErrorMessage());
+                        fprintf(stderr, "send: %s\n",
+                            UDT::getlasterror().getErrorMessage());
                         goto err;
                     }
                     ssize += ss;
