@@ -41,7 +41,7 @@ and limitations under the License.
 
 #include "tls_common.h"
 
-#define BUF_SIZE (1024*8)
+#define BUF_SIZE (1024*64)
 
 using std::cerr;
 using std::endl;
@@ -141,7 +141,7 @@ int verify_paths(SSL_CTX *ctx)
 
 
 struct udt_epoll_args {
-    UDTSOCKET socket;
+    //UDTSOCKET socket;
     int efd;
     int signal_fd;
 };
@@ -161,7 +161,7 @@ void *epoll_signal_thread(void *my_args)
     }
 }
 
-int udt_epoll(int udt_efd, UDTSOCKET socket, pthread_t *signal_thread)
+int udt_epoll(int udt_efd, pthread_t *signal_thread)
 {
     int proxy_fd[2];
     struct udt_epoll_args *args;
@@ -172,7 +172,7 @@ int udt_epoll(int udt_efd, UDTSOCKET socket, pthread_t *signal_thread)
 
     args->signal_fd = proxy_fd[1];
     args->efd = udt_efd;
-    args->socket = socket;
+    //args->socket = socket;
 
     pthread_create(signal_thread, NULL, epoll_signal_thread, (void*)args);
 
@@ -248,7 +248,7 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_file, int o
 
     UDT::epoll_add_usock(actual_udt_efd, recver, &epoll_events);
     UDT::epoll_add_ssock(udt_efd, in_file, &epoll_events);
-    signal_sink = udt_epoll(actual_udt_efd, recver, &signal_thread);
+    signal_sink = udt_epoll(actual_udt_efd, &signal_thread);
     UDT::epoll_add_ssock(udt_efd, signal_sink, &epoll_events);
 
     while (true) {
