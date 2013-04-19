@@ -9,8 +9,8 @@ tls_common.o: tls_common.cpp tls_common.h e_os.h
 tls: tls_client tls_server
 
 tls_client: tls_common.o tls_client.cpp
-	$(CC) $^ -o tls_client $(LFLAGS)
+	$(CC) $^ -o $@ $(LFLAGS)
 
 tls_server: tls_common.o tls_server.cpp
-	$(CC) $^ -o tls_server $(LFLAGS)
+	$(CC) $^ -o $@ $(LFLAGS)
 

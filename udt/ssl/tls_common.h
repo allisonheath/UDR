@@ -26,7 +26,7 @@ and limitations under the License.
 static BIO *bio_err = NULL;
 static const char rnd_seed[] = "string to make the random number generator think it has entropy";
 
-int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file);
+int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_file, int out_file);
 
 int udt_server_conn(UDTSOCKET *recver);
 int udt_client_conn(UDTSOCKET *recver, char *server_host, char *server_port);

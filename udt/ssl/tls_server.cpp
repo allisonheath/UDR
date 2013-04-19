@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
     if (!udt_server_conn(&recver))
         goto end;
 
-    ret=doit_biopair(s_ssl, recver, 1, fileno(stdout));
+    ret = doit_biopair(s_ssl, recver, 1, fileno(stdin), fileno(stdout));
 
 end:
     if (s_ctx != NULL) SSL_CTX_free(s_ctx);

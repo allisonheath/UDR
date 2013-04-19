@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
     if (!udt_client_conn(&recver, argv[1], argv[2]))
         goto end;
 
-    ret=doit_biopair(s_ssl, recver, 0, fileno(stdin));
+    ret = doit_biopair(s_ssl, recver, 0, fileno(stdin), fileno(stdout));
 
 end:
     if (s_ctx != NULL) SSL_CTX_free(s_ctx);

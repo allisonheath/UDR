@@ -131,6 +131,7 @@ int CEPoll::add_ssock(const int eid, const SYSSOCKET& s, const int* events)
          ev.events |= EPOLLERR;
    }
 
+    ev.events |= EPOLLET;
    ev.data.fd = s;
    if (epoll_ctl(p->second.m_iLocalID, EPOLL_CTL_ADD, s, &ev) < 0)
       throw CUDTException();

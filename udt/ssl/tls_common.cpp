@@ -19,34 +19,33 @@ and limitations under the License.
 
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <stdio.h>
+#include <sys/mman.h>
 #include <stdlib.h>
-
 #include <string.h>
-
-
+#include <sys/epoll.h>
 
 #include <openssl/err.h>
 #include <openssl/rand.h>
 #include <openssl/ssl.h>
 
-
 #define USE_SOCKETS
 #include "e_os.h"
 
-#include <string>
 #include <iostream>
+#include <set>
+#include <string>
 #include <udt.h>
-
 
 #include "tls_common.h"
 
 #define BUF_SIZE (1024*8)
 
-using std::string;
 using std::cerr;
 using std::endl;
+using std::string;
 
 static void lock_dbg_cb(int mode, int type, const char *file, int line)
 {
@@ -124,12 +123,6 @@ int ctx_init(SSL_CTX **ctx)
         return 0;
     }
 
-    /*
-    if (!SSL_CTX_set_cipher_list(*ctx, )) {
-        ERR_print_errors(bio_err);
-        return 0;
-    }
-    */
     return 1;
 }
 
@@ -146,14 +139,58 @@ int verify_paths(SSL_CTX *ctx)
     return 1;
 }
 
+
+struct udt_epoll_args {
+    UDTSOCKET socket;
+    int efd;
+    int signal_fd;
+};
+
+void *epoll_signal_thread(void *my_args)
+{
+    struct udt_epoll_args *args = (struct udt_epoll_args*)my_args;
+    std::set<UDTSOCKET> udt_read_fds;
+    char sink[1];
+    int ret;
+
+    while (true) {
+        ret = UDT::epoll_wait(args->efd, &udt_read_fds, NULL, -1);
+        if (ret < 1 || udt_read_fds.size() < 1)
+            break;
+        write(args->signal_fd, "", 1);
+    }
+}
+
+int udt_epoll(int udt_efd, UDTSOCKET socket, pthread_t *signal_thread)
+{
+    int proxy_fd[2];
+    struct udt_epoll_args *args;
+
+    args = (struct udt_epoll_args*)malloc(sizeof(struct udt_epoll_args));
+
+    pipe(proxy_fd);
+
+    args->signal_fd = proxy_fd[1];
+    args->efd = udt_efd;
+    args->socket = socket;
+
+    pthread_create(signal_thread, NULL, epoll_signal_thread, (void*)args);
+
+    fcntl(proxy_fd[0], F_SETFL, O_NONBLOCK);
+
+    return proxy_fd[0];
+}
+
+
 // we want to read and write to the ssl bio pair
 // using udt for our purposes we can limit ourselves to one server connection
 // eliminating the need to deal with openssl threading issues
-int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
+int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_file, int out_file)
 {
-    BIO *s_ssl_bio = NULL;
-    BIO *server = NULL;
-    BIO *server_io = NULL;
+    BIO *ssl_bio = NULL;
+
+    BIO *middle_bio = NULL;
+    BIO *io_bio = NULL;
 
     int ret = 1;
 
@@ -166,11 +203,30 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
     char line[BUF_SIZE];
     char data[BUF_SIZE]; // think about this size
 
-    if (!BIO_new_bio_pair(&server, bufsiz, &server_io, bufsiz))
+    int efd;
+    int udt_efd;
+    int actual_udt_efd;
+    struct epoll_event event;
+    struct epoll_event *events;
+    int epoll_events;
+    int signal_sink;
+    char sink[1];
+    int done = 0;
+    int flushing = 0;
+
+    pthread_t signal_thread;
+
+    std::set<UDTSOCKET> udt_read_fds;
+    std::set<int> read_fds;
+
+    udt_read_fds.insert(recver);
+    read_fds.insert(in_file);
+
+    if (!BIO_new_bio_pair(&middle_bio, bufsiz, &io_bio, bufsiz))
         goto err;
 
-    s_ssl_bio = BIO_new(BIO_f_ssl());
-    if (!s_ssl_bio)
+    ssl_bio = BIO_new(BIO_f_ssl());
+    if (!ssl_bio)
         goto err;
 
     if (is_server)
@@ -178,11 +234,25 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
     else
         SSL_set_connect_state(s_ssl);
 
-    SSL_set_bio(s_ssl, server, server);
-    (void)BIO_set_ssl(s_ssl_bio, s_ssl, BIO_NOCLOSE);
+    SSL_set_bio(s_ssl, middle_bio, middle_bio);
+    (void)BIO_set_ssl(ssl_bio, s_ssl, BIO_NOCLOSE);
+
+    fcntl(in_file, F_SETFL, O_NONBLOCK);
+
+    if (!(udt_efd = UDT::epoll_create()))
+        goto err;
+    if (!(actual_udt_efd = UDT::epoll_create()))
+        goto err;
+
+    epoll_events = UDT_EPOLL_IN;
+
+    UDT::epoll_add_usock(actual_udt_efd, recver, &epoll_events);
+    UDT::epoll_add_ssock(udt_efd, in_file, &epoll_events);
+    signal_sink = udt_epoll(actual_udt_efd, recver, &signal_thread);
+    UDT::epoll_add_ssock(udt_efd, signal_sink, &epoll_events);
 
     while (true) {
-    /*  1. read from stdin. blocking
+    /*  1. read from stdin. non-blocking
         2. write to ssl. non-blocking
         3. read from socket non-blocking
         4. write from the socket buffer to ssl
@@ -192,23 +262,39 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
 
         // for this simple echo server client pair we only want
         // to read from the client
-        if (!is_server && line_size == 0) {
+        if (line_size <= 0) {
             //line_size = getline(&line, &bufsiz, stdin);
-            line_size = read(in_out_file, line, bufsiz);
-            if (line_size == 0) {
-                fprintf(stderr, "flushing\n");
-                BIO_shutdown_wr(s_ssl_bio);
+            if (done) {
+                fprintf(stderr, "going to remove the epoll\n");
+                UDT::epoll_remove_usock(actual_udt_efd, recver);
+                pthread_join(signal_thread, NULL);
+                fprintf(stderr, "removed the epoll\n");
+                BIO_flush(ssl_bio);
+                BIO_shutdown_wr(ssl_bio);
+                flushing = 1;
+                //goto end;
             }
-            if (line_size < 0) {
-                fprintf(stderr, "Problem reading from fd\n");
-                BIO_shutdown_wr(s_ssl_bio);
+            else {
+                line_size = read(in_file, line, bufsiz);
+                if (line_size == 0) {
+                    // we are done but we want to make sure all the data gets sent
+                    done = 1;
+                }
+                if (line_size < 0) {
+                    if (errno != EAGAIN) {
+                        fprintf(stderr, "Problem reading from fd\n");
+                        goto err;
+                    }
+                    UDT::epoll_wait(udt_efd, &udt_read_fds, NULL, -1,  &read_fds);
+                    read(signal_sink, sink, 1);
+                }
             }
         }
 
         if (line_size > 0) {
-            r = BIO_write(s_ssl_bio, line, line_size);
+            r = BIO_write(ssl_bio, line, line_size);
             if (r < 0) {
-                if (!BIO_should_retry(s_ssl_bio)) {
+                if (!BIO_should_retry(ssl_bio)) {
                     fprintf(stderr,"ERROR in SERVER\n");
                     goto err;
                 }
@@ -225,9 +311,9 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
         // if we aren't waiting to read from the ssl bio
         if (sock_read_size <= 0) {
             sock_written = 0;
-            if (UDT::ERROR == (sock_read_size = UDT::recv(recver, data, sizeof(data), 0))) {
-                if (UDT::getlasterror().getErrorCode() == 6002);
-                else {
+            if (UDT::ERROR == (sock_read_size = UDT::recv(recver, data,
+                sizeof(data), 0))) {
+                if (UDT::getlasterror().getErrorCode() != 6002) {
                     fprintf(stderr, "recv: %s \n",
                         UDT::getlasterror().getErrorMessage());
                     goto err;
@@ -237,7 +323,7 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
 
         if (sock_read_size > 0) {
             ssize_t num = sock_read_size;
-            r = BIO_ctrl_get_write_guarantee(server_io);
+            r = BIO_ctrl_get_write_guarantee(io_bio);
             if (r < num)
                 num = r;
 
@@ -249,14 +335,14 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
                 if (num > 1)
                     --num; /* test restartability even more thoroughly */
 
-                r = BIO_nwrite0(server_io, &dataptr);
+                r = BIO_nwrite0(io_bio, &dataptr);
                 assert(r > 0);
                 if (r < (int)num)
                     num = r;
 
                 memcpy(dataptr, data + sock_written, num);
 
-                r = BIO_nwrite(server_io, &dataptr, (int)num);
+                r = BIO_nwrite(io_bio, &dataptr, (int)num);
                 if (r != (int)num) /* can't happen */
                 {
                     fprintf(stderr, "ERROR: BIO_nwrite() did not accept "
@@ -271,9 +357,9 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
         {
             char sbuf[BUF_SIZE];
 
-            r = BIO_read(s_ssl_bio, sbuf, sizeof(sbuf));
+            r = BIO_read(ssl_bio, sbuf, sizeof(sbuf));
             if (r < 0) {
-                if (!BIO_should_retry(s_ssl_bio)) {
+                if (!BIO_should_retry(ssl_bio)) {
                     fprintf(stderr,"ERROR in SERVER\n");
                     goto err;
                 }
@@ -283,17 +369,21 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
                 goto err;
             }
             else {
-                write(in_out_file, sbuf, r);
+                write(out_file, sbuf, r);
             }
         }
-
 
         // write to the socket hence the client
         do {
             size_t num;
             int r;
 
-            to_send = num = BIO_ctrl_pending(server_io);
+            to_send = num = BIO_ctrl_pending(io_bio);
+
+            if (flushing && to_send < 1) {
+                fprintf(stderr, "going to end now\n");
+                goto end;
+            }
 
             if (num)
             {
@@ -302,7 +392,7 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
                 if (INT_MAX < num) /* yeah, right */
                     num = INT_MAX;
 
-                r = BIO_nread(server_io, &dataptr, (int)num);
+                r = BIO_nread(io_bio, &dataptr, (int)num);
                 assert((r > 0 && r <= (int)num));
                 num = r;
 
@@ -317,8 +407,7 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_out_file)
                     ssize += ss;
                 }
 
-                if (r != (int)num) /* can't happen */
-                {
+                if (r != (int)num) { /* can't happen */
                     fprintf(stderr, "ERROR: BIO_write could not write "
                         "BIO_ctrl_get_write_guarantee() bytes");
                     goto err;
@@ -332,15 +421,15 @@ end:
 err:
     ERR_print_errors(bio_err);
 
-    if (server)
-        BIO_free(server);
-    if (server_io)
-        BIO_free(server_io);
-    if (s_ssl_bio)
-        BIO_free(s_ssl_bio);
+    //pthread_cancel(signal_thread);
 
-    //if (line)
-    //    free(line);
+    if (middle_bio)
+        BIO_free(middle_bio);
+    if (io_bio)
+        BIO_free(io_bio);
+    if (ssl_bio)
+        BIO_free(ssl_bio);
+
     return ret;
 }
 
@@ -389,6 +478,9 @@ int udt_server_conn(UDTSOCKET *recver)
         fprintf(stderr, "accept: %s\n", UDT::getlasterror().getErrorMessage());
         return 0;
     }
+
+    bool block = false;
+    UDT::setsockopt(*recver, 0, UDT_RCVSYN, &block, sizeof(bool));
 
     UDT::close(serv);
 
