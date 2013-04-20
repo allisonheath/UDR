@@ -41,7 +41,7 @@ and limitations under the License.
 
 #include "tls_common.h"
 
-#define BUF_SIZE (1024*64)
+#define BUF_SIZE (1024*64*2)
 
 using std::cerr;
 using std::endl;
@@ -212,7 +212,6 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_file, int o
     int signal_sink;
     char sink[1];
     int done = 0;
-    int flushing = 0;
 
     pthread_t signal_thread;
 
@@ -260,34 +259,22 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_file, int o
         6. write to socket from the ssl buffer. blocking */
         int r;
 
-        // for this simple echo server client pair we only want
-        // to read from the client
-        if (line_size <= 0) {
-            //line_size = getline(&line, &bufsiz, stdin);
-            if (done) {
-                fprintf(stderr, "going to remove the epoll\n");
-                UDT::epoll_remove_usock(actual_udt_efd, recver);
-                pthread_join(signal_thread, NULL);
-                fprintf(stderr, "removed the epoll\n");
-                BIO_flush(ssl_bio);
-                BIO_shutdown_wr(ssl_bio);
-                flushing = 1;
-                //goto end;
-            }
-            else {
-                line_size = read(in_file, line, bufsiz);
-                if (line_size == 0) {
-                    // we are done but we want to make sure all the data gets sent
+        if (!done && line_size <= 0) {
+            line_size = read(in_file, line, bufsiz);
+            if (line_size == 0) {
+                // we are done but we want to make sure all the data gets sent
+                if (is_server)
                     done = 1;
+                else
+                    SSL_shutdown(s_ssl);
+            }
+            else if (line_size < 0) {
+                if (errno != EAGAIN) {
+                    fprintf(stderr, "Problem reading from fd\n");
+                    goto err;
                 }
-                if (line_size < 0) {
-                    if (errno != EAGAIN) {
-                        fprintf(stderr, "Problem reading from fd\n");
-                        goto err;
-                    }
-                    UDT::epoll_wait(udt_efd, &udt_read_fds, NULL, -1,  &read_fds);
-                    read(signal_sink, sink, 1);
-                }
+                UDT::epoll_wait(udt_efd, &udt_read_fds, NULL, -1,  &read_fds);
+                read(signal_sink, sink, 1);
             }
         }
 
@@ -365,8 +352,11 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_file, int o
                 }
             }
             else if (r == 0) {
-                fprintf(stderr,"SSL SERVER STARTUP FAILED\n");
-                goto err;
+                if (!is_server)
+                    goto end;
+                //goto err;
+                if (done)
+                    SSL_shutdown(s_ssl);
             }
             else {
                 write(out_file, sbuf, r);
@@ -379,11 +369,6 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_file, int o
             int r;
 
             to_send = num = BIO_ctrl_pending(io_bio);
-
-            if (flushing && to_send < 1) {
-                fprintf(stderr, "going to end now\n");
-                goto end;
-            }
 
             if (num)
             {
@@ -422,6 +407,9 @@ err:
     ERR_print_errors(bio_err);
 
     //pthread_cancel(signal_thread);
+    UDT::epoll_release(actual_udt_efd);
+    UDT::epoll_remove_usock(actual_udt_efd, recver);
+    pthread_join(signal_thread, NULL);
 
     if (middle_bio)
         BIO_free(middle_bio);
