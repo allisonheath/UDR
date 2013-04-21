@@ -22,7 +22,7 @@ DWORD WINAPI monitor(LPVOID);
 
 int main(int argc, char* argv[])
 {
-   if (argc != 7)
+   if (argc != 8)
    {
       cout << "usage: appclient server_ip server_port use_blast(0 or 1) udt_sendbuff udp_sendbuff mss" << endl;
       return 0;
@@ -52,6 +52,7 @@ int main(int argc, char* argv[])
     int udt_sendbuff = atoi(argv[4]);
     int udp_sendbuff = atoi(argv[5]);
     int mss = atoi(argv[6]);
+    int blast_rate = atoi(argv[7]);
 
 
    // UDT Options
@@ -101,7 +102,7 @@ int main(int argc, char* argv[])
        int temp;
        UDT::getsockopt(client, 0, UDT_CC, &cchandle, &temp);
        if (NULL != cchandle)
-          cchandle->setRate(500);
+          cchandle->setRate(blast_rate);
     }
 
    int size = udt_sendbuff;
