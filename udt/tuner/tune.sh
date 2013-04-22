@@ -3,15 +3,17 @@
 # ./tune.sh 127.0.0.1 lacadmin /home/lacadmin/udr_crypto/udt/tuner/appserver /home/lacadmin/udr_crypto/udt/src
 
 port=9000
+
 host=$1
 remote_user=$2
+server_command=$3
+remote_udt_path=$4
 
 count=0
 interval=60
+
 settings_file=settings.txt
-server_command=$3
 client=./appclient
-remote_udt_path=$4
 export_ld="export LD_LIBRARY_PATH=$remote_udt_path"
 
 while read line; do
