@@ -136,6 +136,16 @@ int main(int argc, char* argv[])
    return 0;
 }
 
+
+#ifndef WIN32
+void* sendfileRead(void* usocket)
+#else
+DWORD WINAPI sendRead(LPVOID usocket)
+#endif
+{
+    return NULL;
+}
+
 #ifndef WIN32
 void* sendfile(void* usocket)
 #else

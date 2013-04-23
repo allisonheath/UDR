@@ -41,7 +41,8 @@ and limitations under the License.
 
 #include "tls_common.h"
 
-#define BUF_SIZE (1024*64*2)
+//#define BUF_SIZE (1024*64*2 + 1)
+#define BUF_SIZE 1048576
 
 using std::cerr;
 using std::endl;
@@ -419,102 +420,5 @@ err:
         BIO_free(ssl_bio);
 
     return ret;
-}
-
-int udt_server_conn(UDTSOCKET *recver)
-{
-    UDT::startup();
-
-    addrinfo hints;
-    addrinfo* res;
-
-    memset(&hints, 0, sizeof(struct addrinfo));
-
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-
-    string service("9000");
-
-    if (0 != getaddrinfo(NULL, service.c_str(), &hints, &res)) {
-        fprintf(stderr, "illegal port number or port is busy.\n");
-        return 0;
-    }
-
-    UDTSOCKET serv = UDT::socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-
-    if (UDT::ERROR == UDT::bind(serv, res->ai_addr, res->ai_addrlen)) {
-        fprintf(stderr, "bind: %s", UDT::getlasterror().getErrorMessage());
-        return 0;
-    }
-
-    freeaddrinfo(res);
-
-    fprintf(stderr, "server is ready at port: %s\n", service.c_str());
-
-    if (UDT::ERROR == UDT::listen(serv, 1))
-    {
-       fprintf(stderr, "listen: %s\n", UDT::getlasterror().getErrorMessage());
-       return 0;
-    }
-
-    sockaddr_storage clientaddr;
-    int addrlen = sizeof(clientaddr);
-
-    if (UDT::INVALID_SOCK == (*recver = UDT::accept(serv,
-        (sockaddr*)&clientaddr, &addrlen))) {
-        fprintf(stderr, "accept: %s\n", UDT::getlasterror().getErrorMessage());
-        return 0;
-    }
-
-    bool block = false;
-    UDT::setsockopt(*recver, 0, UDT_RCVSYN, &block, sizeof(bool));
-
-    UDT::close(serv);
-
-    return 1;
-}
-
-int udt_client_conn(UDTSOCKET *recver, char *server_host, char *server_port)
-{
-    UDT::startup();
-
-    struct addrinfo hints, *local, *peer;
-
-    memset(&hints, 0, sizeof(struct addrinfo));
-
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-
-    if (0 != getaddrinfo(NULL, "9000", &hints, &local))
-    {
-        cerr << "incorrect network address.\n" << endl;
-        return 0;
-    }
-
-    *recver = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
-
-    freeaddrinfo(local);
-
-    if (0 != getaddrinfo(server_host, server_port, &hints, &peer))
-    {
-        cerr << "incorrect server/peer address. " << server_host << ":" << server_port << endl;
-        return 0;
-    }
-
-    // connect to the server, implict bind
-    if (UDT::ERROR == UDT::connect(*recver, peer->ai_addr, peer->ai_addrlen))
-    {
-        cerr << "connect: " << UDT::getlasterror().getErrorMessage() << endl;
-        return 0;
-    }
-
-    bool block = false;
-    UDT::setsockopt(*recver, 0, UDT_RCVSYN, &block, sizeof(bool));
-
-    freeaddrinfo(peer);
-
-    return 1;
 }
 

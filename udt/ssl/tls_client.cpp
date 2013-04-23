@@ -55,10 +55,16 @@ and limitations under the License.
                   */
 #include OPENSSL_UNISTD
 
+#include <iostream>
+
 #include <udt.h>
 
 #include "tls_common.h"
 
+using std::cerr;
+using std::endl;
+
+int udt_client_conn(UDTSOCKET *recver, char *server_host, char *server_port);
 
 int main(int argc, char *argv[])
 {
@@ -67,9 +73,14 @@ int main(int argc, char *argv[])
     SSL_CTX *s_ctx = NULL;
     SSL *s_ssl;
 
-    if ((3 != argc) || (0 == atoi(argv[2])))
-    {
-        fprintf(stderr, "usage: appclient server_ip server_port\n");
+    int udt_sendbuff;
+    int udp_sendbuff;
+    int mss;
+    int blast_rate;
+
+
+    if (6 != argc) {
+        fprintf(stderr, "Usage: tls_client server_ip server_port udt_sendbuf udp_sendbuf mss\n");
         return 1;
     }
 
@@ -84,6 +95,16 @@ int main(int argc, char *argv[])
 
     if (!udt_client_conn(&recver, argv[1], argv[2]))
         goto end;
+
+    udt_sendbuff = atoi(argv[3]);
+    udp_sendbuff = atoi(argv[4]);
+    mss = atoi(argv[5]);
+
+    UDT::setsockopt(recver, 0, UDT_MSS, &mss, sizeof(int));
+    UDT::setsockopt(recver, 0, UDT_SNDBUF, &udt_sendbuff, sizeof(int));
+    UDT::setsockopt(recver, 0, UDP_SNDBUF, &udp_sendbuff, sizeof(int));
+    UDT::setsockopt(recver, 0, UDT_RCVBUF, &udt_sendbuff, sizeof(int));
+    UDT::setsockopt(recver, 0, UDP_RCVBUF, &udp_sendbuff, sizeof(int));
 
     ret = doit_biopair(s_ssl, recver, 0, fileno(stdin), fileno(stdout));
 
@@ -109,3 +130,44 @@ end:
     return ret;
 }
 
+int udt_client_conn(UDTSOCKET *recver, char *server_host, char *server_port)
+{
+    UDT::startup();
+
+    struct addrinfo hints, *local, *peer;
+
+    memset(&hints, 0, sizeof(struct addrinfo));
+
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if (0 != getaddrinfo(NULL, "9000", &hints, &local))
+    {
+        cerr << "incorrect network address.\n" << endl;
+        return 0;
+    }
+
+    *recver = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
+
+    freeaddrinfo(local);
+
+    if (0 != getaddrinfo(server_host, server_port, &hints, &peer))
+    {
+        cerr << "incorrect server/peer address. " << server_host << ":" << server_port << endl;
+        return 0;
+    }
+
+    // connect to the server, implict bind
+    if (UDT::ERROR == UDT::connect(*recver, peer->ai_addr, peer->ai_addrlen))
+    {
+        cerr << "connect: " << UDT::getlasterror().getErrorMessage() << endl;
+        return 0;
+    }
+
+    UDT::setsockopt(*recver, 0, UDT_RCVSYN, new bool(false), sizeof(bool));
+
+    freeaddrinfo(peer);
+
+    return 1;
+}

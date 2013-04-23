@@ -57,12 +57,18 @@ and limitations under the License.
                   */
 #include OPENSSL_UNISTD
 
+#include <iostream>
+
 #include <udt.h>
 
 #include "tls_common.h"
 
 #define TEST_SERVER_CERT "server.pem"
 
+using std::cerr;
+using std::endl;
+
+int udt_server_conn(UDTSOCKET *recver, char port[]);
 
 int main(int argc, char *argv[])
 {
@@ -73,6 +79,20 @@ int main(int argc, char *argv[])
 
     SSL_CTX *s_ctx = NULL;
     SSL *s_ssl;
+
+    int udt_sendbuff;
+    int udp_sendbuff;
+    int mss;
+
+    if (argc != 5) {
+        fprintf(stderr, "Usage: tls_server port udt_sendbuff udp_sendbuff mss\n");
+        exit(1);
+    }
+
+    udt_sendbuff = atoi(argv[2]);
+    udp_sendbuff = atoi(argv[3]);
+    mss = atoi(argv[4]);
+
 
     if (!ctx_init(&s_ctx))
         goto end;
@@ -99,8 +119,15 @@ int main(int argc, char *argv[])
 
     UDTSOCKET recver;
 
-    if (!udt_server_conn(&recver))
+    if (!udt_server_conn(&recver, argv[1]))
         goto end;
+
+    UDT::setsockopt(recver, 0, UDT_MSS, &mss, sizeof(int));
+    UDT::setsockopt(recver, 0, UDT_SNDBUF, &udt_sendbuff, sizeof(int));
+    UDT::setsockopt(recver, 0, UDP_SNDBUF, &udp_sendbuff, sizeof(int));
+    UDT::setsockopt(recver, 0, UDT_RCVBUF, &udt_sendbuff, sizeof(int));
+    UDT::setsockopt(recver, 0, UDP_RCVBUF, &udp_sendbuff, sizeof(int));
+
 
     ret = doit_biopair(s_ssl, recver, 1, fileno(stdin), fileno(stdout));
 
@@ -125,4 +152,58 @@ end:
     EXIT(ret);
     return ret;
 }
+
+int udt_server_conn(UDTSOCKET *recver, char port[])
+{
+    addrinfo hints;
+    addrinfo* res;
+
+    UDT::startup();
+
+    memset(&hints, 0, sizeof(struct addrinfo));
+
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    //string service(port);
+    if (0 != getaddrinfo(NULL, port, &hints, &res)) {
+        fprintf(stderr, "illegal port number or port is busy.\n");
+        return 0;
+    }
+
+    UDTSOCKET serv = UDT::socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+
+    if (UDT::ERROR == UDT::bind(serv, res->ai_addr, res->ai_addrlen)) {
+        fprintf(stderr, "bind: %s", UDT::getlasterror().getErrorMessage());
+        return 0;
+    }
+
+    freeaddrinfo(res);
+
+    fprintf(stderr, "server is ready at port: %s\n", port);
+
+    if (UDT::ERROR == UDT::listen(serv, 1))
+    {
+       fprintf(stderr, "listen: %s\n", UDT::getlasterror().getErrorMessage());
+       return 0;
+    }
+
+    sockaddr_storage clientaddr;
+    int addrlen = sizeof(clientaddr);
+
+    if (UDT::INVALID_SOCK == (*recver = UDT::accept(serv,
+        (sockaddr*)&clientaddr, &addrlen))) {
+        fprintf(stderr, "accept: %s\n", UDT::getlasterror().getErrorMessage());
+        return 0;
+    }
+
+    UDT::setsockopt(*recver, 0, UDT_RCVSYN, new bool(false), sizeof(bool));
+
+    // only take one connection
+    UDT::close(serv);
+
+    return 1;
+}
+
 
