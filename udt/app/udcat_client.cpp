@@ -31,11 +31,11 @@ using std::endl;
 
 int main(int argc, char* argv[])
 {
-    if ((3 != argc) || (0 == atoi(argv[2])))
-    {
-        cerr << "usage: appclient server_ip server_port" << endl;
-        return 1;
-    }
+   if (argc != 8)
+   {
+      cerr << "usage: appclient server_ip server_port use_blast(0 or 1) udt_sendbuff udp_sendbuff mss" << endl;
+      return 1;
+   }
 
     UDT::startup();
 
@@ -55,6 +55,22 @@ int main(int argc, char* argv[])
 
 
     UDTSOCKET client = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
+
+    int blast = atoi(argv[3]);
+    int udt_sendbuff = atoi(argv[4]);
+    int udp_sendbuff = atoi(argv[5]);
+    int mss = atoi(argv[6]);
+    int blast_rate = atoi(argv[7]);
+
+
+   // UDT Options
+   if (blast)
+    UDT::setsockopt(client, 0, UDT_CC, new CCCFactory<CUDPBlast>, sizeof(CCCFactory<CUDPBlast>));
+
+   UDT::setsockopt(client, 0, UDT_MSS, &mss, sizeof(int));
+   UDT::setsockopt(client, 0, UDT_SNDBUF, &udt_sendbuff, sizeof(int));
+   UDT::setsockopt(client, 0, UDP_SNDBUF, &udp_sendbuff, sizeof(int));
+
 
     freeaddrinfo(local);
 
@@ -77,7 +93,15 @@ int main(int argc, char* argv[])
 
     freeaddrinfo(peer);
 
-    size_t buf_size = BUF_SIZE;
+   if (blast) {
+       CUDPBlast* cchandle = NULL;
+       int temp;
+       UDT::getsockopt(client, 0, UDT_CC, &cchandle, &temp);
+       if (NULL != cchandle)
+          cchandle->setRate(blast_rate);
+    }
+
+    size_t buf_size = udt_sendbuff;
     int size;
     char* data = NULL;
 

@@ -33,12 +33,15 @@ using std::string;
 void* recvdata(void*);
 void* senddata(void*);
 
+int buffer_size;
+
 int main(int argc, char* argv[])
 {
-    if ((1 != argc) && ((2 != argc) || (0 == atoi(argv[1])))) {
-        cerr << "usage: appserver [server_port]" << endl;
-        return 1;
-    }
+   if (argc != 6) {
+      cerr << "usage: appserver server_port use_blast(0 or 1) udt_recvbuff "
+        "udp_recvbuff mss" << endl;
+      return 1;
+   }
 
     UDT::startup();
 
@@ -61,6 +64,21 @@ int main(int argc, char* argv[])
     }
 
     UDTSOCKET serv = UDT::socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+
+    int blast = atoi(argv[2]);
+    int udt_recvbuff = atoi(argv[3]);
+    int udp_recvbuff = atoi(argv[4]);
+    int mss = atoi(argv[5]);
+    buffer_size = udt_recvbuff;
+
+   // UDT Options
+    if (blast)
+        UDT::setsockopt(serv, 0, UDT_CC, new CCCFactory<CUDPBlast>, sizeof(CCCFactory<CUDPBlast>));
+
+   UDT::setsockopt(serv, 0, UDT_MSS, &mss, sizeof(int));
+   UDT::setsockopt(serv, 0, UDT_RCVBUF, &udt_recvbuff, sizeof(int));
+   UDT::setsockopt(serv, 0, UDP_RCVBUF, &udp_recvbuff, sizeof(int));
+
 
     if (UDT::ERROR == UDT::bind(serv, res->ai_addr, res->ai_addrlen)) {
         cerr << "bind: " << UDT::getlasterror().getErrorMessage() << endl;
