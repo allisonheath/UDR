@@ -66,6 +66,8 @@ int main(int argc, char* argv[])
    UDT::setsockopt(serv, 0, UDT_MSS, &mss, sizeof(int));
    UDT::setsockopt(serv, 0, UDT_SNDBUF, &udt_sendbuff, sizeof(int));
    UDT::setsockopt(serv, 0, UDP_SNDBUF, &udp_sendbuff, sizeof(int));
+   UDT::setsockopt(serv, 0, UDT_RCVBUF, &udt_sendbuff, sizeof(int));
+   UDT::setsockopt(serv, 0, UDP_RCVBUF, &udp_sendbuff, sizeof(int));
 
 
 

@@ -47,6 +47,8 @@ int main(int argc, char* argv[])
    UDT::setsockopt(fhandle, 0, UDT_MSS, &mss, sizeof(int));
    UDT::setsockopt(fhandle, 0, UDT_RCVBUF, &udt_recvbuff, sizeof(int));
    UDT::setsockopt(fhandle, 0, UDP_RCVBUF, &udp_recvbuff, sizeof(int));
+   UDT::setsockopt(fhandle, 0, UDT_SNDBUF, &udt_recvbuff, sizeof(int));
+   UDT::setsockopt(fhandle, 0, UDP_SNDBUF, &udp_recvbuff, sizeof(int));
 
 
    if (0 != getaddrinfo(argv[1], argv[2], &hints, &peer))
