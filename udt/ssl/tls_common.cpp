@@ -42,7 +42,7 @@ and limitations under the License.
 #include "tls_common.h"
 
 //#define BUF_SIZE (1024*64*2 + 1)
-#define BUF_SIZE 1048576
+#define BUF_SIZE 22368
 
 using std::cerr;
 using std::endl;
@@ -123,6 +123,8 @@ int ctx_init(SSL_CTX **ctx)
         ERR_print_errors(bio_err);
         return 0;
     }
+
+    SSL_CTX_set_cipher_list(*ctx, "AES128-SHA");
 
     return 1;
 }
@@ -252,6 +254,11 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_file, int o
     UDT::epoll_add_ssock(udt_efd, signal_sink, &epoll_events);
 
     while (true) {
+
+        fprintf(stderr, "the cipher is %s\n", SSL_get_cipher_name(s_ssl));
+
+
+
     /*  1. read from stdin. non-blocking
         2. write to ssl. non-blocking
         3. read from socket non-blocking
