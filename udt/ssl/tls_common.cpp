@@ -255,10 +255,6 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_file, int o
 
     while (true) {
 
-        fprintf(stderr, "the cipher is %s\n", SSL_get_cipher_name(s_ssl));
-
-
-
     /*  1. read from stdin. non-blocking
         2. write to ssl. non-blocking
         3. read from socket non-blocking
