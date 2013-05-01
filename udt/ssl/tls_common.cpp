@@ -124,7 +124,7 @@ int ctx_init(SSL_CTX **ctx)
         return 0;
     }
 
-    SSL_CTX_set_cipher_list(*ctx, "AES128-SHA");
+    SSL_CTX_set_cipher_list(*ctx, "NULL-SHA");
 
     return 1;
 }
@@ -323,17 +323,19 @@ int doit_biopair(SSL *s_ssl, UDTSOCKET recver, int is_server, int in_file, int o
 
                 if (INT_MAX < num)
                     num = INT_MAX;
-                if (num > 1)
-                    --num; /* test restartability even more thoroughly */
+                //if (num > 1)
+                //    --num; /* test restartability even more thoroughly */
 
                 r = BIO_nwrite0(io_bio, &dataptr);
                 assert(r > 0);
                 if (r < (int)num)
                     num = r;
 
+                // maybe not
                 memcpy(dataptr, data + sock_written, num);
 
                 r = BIO_nwrite(io_bio, &dataptr, (int)num);
+                //r = BIO_nwrite(io_bio, data + sock_written, (int)num);
                 if (r != (int)num) /* can't happen */
                 {
                     fprintf(stderr, "ERROR: BIO_nwrite() did not accept "

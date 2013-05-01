@@ -49,7 +49,7 @@ class crypto
     // EVP stuff
     EVP_CIPHER_CTX ctx;
 
-public:
+    public:
 
     crypto(int direc, int len, unsigned char* password, char *encryption_type)
     {
@@ -58,43 +58,43 @@ public:
 
         //aes-128|aes-256|bf|des-ede3
         //log_set_maximum_verbosity(LOG_DEBUG);
-        log_print(LOG_DEBUG, "encryption type %s\n", encryption_type);
+        //log_print(LOG_DEBUG, "encryption type %s\n", encryption_type);
 
         if (strncmp("aes-128", encryption_type, 8) == 0) {
-            log_print(LOG_DEBUG, "using aes-128 encryption\n");
+            //log_print(LOG_DEBUG, "using aes-128 encryption\n");
+#ifdef OPENSSL_HAS_CTR
             if (CTR_MODE)
                 cipher = EVP_aes_128_ctr();
             else
+#endif
                 cipher = EVP_aes_128_cfb();
         }
         else if (strncmp("aes-192", encryption_type, 8) == 0) {
-            log_print(LOG_DEBUG, "using aes-192 encryption\n");
+            //log_print(LOG_DEBUG, "using aes-192 encryption\n");
+#ifdef OPENSSL_HAS_CTR
             if (CTR_MODE)
                 cipher = EVP_aes_192_ctr();
             else
+#endif
                 cipher = EVP_aes_192_cfb();
         }
         else if (strncmp("aes-256", encryption_type, 8) == 0) {
-            log_print(LOG_DEBUG, "using aes-256 encryption\n");
+            //log_print(LOG_DEBUG, "using aes-256 encryption\n");
+#ifdef OPENSSL_HAS_CTR
             if (CTR_MODE)
                 cipher = EVP_aes_256_ctr();
             else
+#endif
                 cipher = EVP_aes_256_cfb();
         }
         else if (strncmp("des-ede3", encryption_type, 9) == 0) {
-        // apparently there is no 3des nor bf ctr
-//            if (CTR_MODE)
-//                cipher = EVP_des_ede3_ctr();
-//            else
-                cipher = EVP_des_ede3_cfb();
-            log_print(LOG_DEBUG, "using des-ede3 encryption\n");
+            // apparently there is no 3des nor bf ctr
+            cipher = EVP_des_ede3_cfb();
+            //log_print(LOG_DEBUG, "using des-ede3 encryption\n");
         }
         else if (strncmp("bf", encryption_type, 3) == 0) {
-//            if (CTR_MODE)
-//                cipher = EVP_bf_ctr();
-//            else
-                cipher = EVP_bf_cfb();
-            log_print(LOG_DEBUG, "using blowfish encryption\n");
+            cipher = EVP_bf_cfb();
+            //log_print(LOG_DEBUG, "using blowfish encryption\n");
         }
         else {
             fprintf(stderr, "error unsupported encryption type %s\n",
