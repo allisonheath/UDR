@@ -32,7 +32,7 @@ and limitations under the License.
 #include <openssl/err.h>
 #include <limits.h>
 #include <iostream>
-#include "udr_log.h"
+//#include "udr_log.h"
 
 using namespace std;
 
