@@ -62,7 +62,6 @@ void set_default_udr_options(UDR_Options * options) {
     options->server_config[0] = '\0';
     snprintf(options->server_port, PATH_MAX, "%s", "9000");
 
-    snprintf(options->encryption_type, PATH_MAX, "%s", "aes-128");
 
     options->rsync_uid = 0;
     options->rsync_gid = 0;
@@ -98,7 +97,7 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 
     int option_index = 0;
 
-    while ((ch = getopt_long(rsync_arg_idx, argv, "tlvxa:b:n:s:h:p:c:k:o:", long_options, &option_index)) != -1)
+    while ((ch = getopt_long(rsync_arg_idx, argv, "tlvxa:b:s:h:p:c:k:o:n:", long_options, &option_index)) != -1)
         switch (ch) {
 	case 'a':
 	    udr_options->start_port = atoi(optarg);
@@ -111,8 +110,12 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 	    break;
 	case 'n':
 	    udr_options->encryption = true;
-        if (optarg)
-            snprintf(udr_options->encryption_type, PATH_MAX, "%s", optarg);
+            if (optarg) {
+		fprintf(stderr, "the optarg %s\n", optarg);
+            	snprintf(udr_options->encryption_type, PATH_MAX, "%s", optarg);
+	    }
+	    else
+    		snprintf(udr_options->encryption_type, PATH_MAX, "%s", "aes-128");
 	    break;
 	case 's':
 	    udr_options->sflag = 1;
