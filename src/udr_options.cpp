@@ -62,7 +62,7 @@ void set_default_udr_options(UDR_Options * options) {
     options->server_config[0] = '\0';
     snprintf(options->server_port, PATH_MAX, "%s", "9000");
 
-    //snprintf(options->encryption_type, PATH_MAX, "%s", "aes-128");
+    snprintf(options->encryption_type, PATH_MAX, "%s", "aes-128");
 
     options->rsync_uid = 0;
     options->rsync_gid = 0;
@@ -83,7 +83,7 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
         {"end-port", required_argument, NULL, 'b'},
         {"receiver", no_argument, NULL, 't'},
         {"server", required_argument, NULL, 'd'},
-        {"encrypt", required_argument, NULL, 'n'},
+        {"encrypt", optional_argument, NULL, 'n'},
         {"sender", no_argument, NULL, 's'},
         {"login-name", required_argument, NULL, 'l'},
         {"keyfile", required_argument, NULL, 'p'},
@@ -111,7 +111,8 @@ int get_udr_options(UDR_Options * udr_options, int argc, char * argv[], int rsyn
 	    break;
 	case 'n':
 	    udr_options->encryption = true;
-        snprintf(udr_options->encryption_type, PATH_MAX, "%s", optarg);
+        if (optarg)
+            snprintf(udr_options->encryption_type, PATH_MAX, "%s", optarg);
 	    break;
 	case 's':
 	    udr_options->sflag = 1;
