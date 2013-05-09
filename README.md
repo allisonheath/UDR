@@ -21,7 +21,7 @@ Currently, UDR has mainly been tested on Linux so your mileage may vary on anoth
 
 USAGE
 ------
-UDR must be on the client and server machines that data will be transferred between. UDR uses ssh to do authentication and automatically start the server-side UDR process. At least one UDP port needs to be open between the machines, by default UDR starts with port 9000 and looks for an open port up to 9100, changing this is an option. Encryption is off by default. When turned on encryption uses the OpenSSL implementation of blowfish. Currently, encryption appears to reduce the speed by about half, this should be improved in future versions. 
+UDR must be on the client and server machines that data will be transferred between. UDR uses ssh to do authentication and automatically start the server-side UDR process. At least one UDP port needs to be open between the machines, by default UDR starts with port 9000 and looks for an open port up to 9100, changing this is an option. Encryption is off by default. When turned on encryption uses OpenSSL with aes-128 by default.
 
 ### Basic usage:
     udr [udr options] rsync [rsync options] src dest
@@ -29,7 +29,7 @@ UDR must be on the client and server machines that data will be transferred betw
 ### UDR options: 
 [-a starting port number] default is 9000  
 [-b ending port number] default is 9100  
-[-n] turns on encryption  
+[-n aes-128 | aes-192 | aes-256 | bf | des-ede3] turns on encryption, if crypto is not specified aes-128 is the default  
 [-p path] local path for the .udr_key file used for encryption, default is the current directory   
 [-c remote udr location] by default udr assumes that udr is in your path on the remote system, here you can specify the location explicitly  
 [-o server port] port to access a UDR server, default is 9000
