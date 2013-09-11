@@ -311,7 +311,6 @@ int run_sender(UDR_Options * udr_options, unsigned char * passphrase, const char
     if(udr_options->verbose)
 	fprintf(stderr, "[udr sender] joined on udt_to_sender_thread %d\n", rc1);
 
-    UDT::close(client);
     pthread_kill(sender_to_udt_thread, SIGUSR1);
 
     int rc2 = pthread_join(sender_to_udt_thread, NULL);
