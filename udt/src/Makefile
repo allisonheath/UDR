@@ -1,4 +1,4 @@
-C++ = g++ -g
+CXX?=g++ -g
 
 ifndef os
    os = LINUX
@@ -36,13 +36,13 @@ DIR = $(shell pwd)
 all: libudt.so libudt.a udt
 
 %.o: %.cpp %.h udt.h
-	$(C++) $(CCFLAGS) $< -c
+	$(CXX) $(CCFLAGS) $< -c
 
 libudt.so: $(OBJS)
 ifneq ($(os), OSX)
-	$(C++) -shared -o $@ $^
+	$(CXX) -shared -o $@ $^
 else
-	$(C++) -dynamiclib -o libudt.dylib -lstdc++ -lpthread -lm $^
+	$(CXX) -dynamiclib -o libudt.dylib -lstdc++ -lpthread -lm $^
 endif
 
 libudt.a: $(OBJS)

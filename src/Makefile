@@ -1,4 +1,4 @@
-C++ = g++
+CXX?=g++
 
 ifndef os
    os = LINUX
@@ -46,10 +46,10 @@ version.h:
 	./version.sh
 
 %.o: %.cpp 
-	$(C++) $(CCFLAGS) $< -c
+	$(CXX) $(CCFLAGS) $< -c
 
 udr: udr.o udr_threads.o udr_util.o udr_options.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 
 clean:
 	rm -f *.o $(APP)

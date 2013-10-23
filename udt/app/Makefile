@@ -1,4 +1,4 @@
-C++ = g++
+CXX?=g++
 
 ifndef os
    os = LINUX
@@ -43,22 +43,22 @@ APP = appserver appclient sendfile recvfile test udcat_client udcat_server
 all: $(APP)
 
 %.o: %.cpp
-	$(C++) $(CCFLAGS) $< -c
+	$(CXX) $(CCFLAGS) $< -c
 
 appserver: appserver.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 appclient: appclient.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 sendfile: sendfile.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 recvfile: recvfile.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 test: test.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 udcat_server: udcat_server.o udcat_common.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 udcat_client: udcat_client.o udcat_common.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 
 clean:
 	rm -f *.o $(APP)

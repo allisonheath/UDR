@@ -1,4 +1,4 @@
-C++ = g++
+CXX?=g++
 
 ifndef os
    os = LINUX
@@ -43,16 +43,16 @@ APP = appserver appclient sendfile recvfile
 all: $(APP)
 
 %.o: %.cpp
-	$(C++) $(CCFLAGS) $< -c
+	$(CXX) $(CCFLAGS) $< -c
 
 appserver: appserver.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 appclient: appclient.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 sendfile: sendfile.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 recvfile: recvfile.o
-	$(C++) $^ -o $@ $(LDFLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 
 clean:
 	rm -f *.o $(APP)
