@@ -1,5 +1,5 @@
 language: cpp
 compiler:
   - gcc
-# Change this to your needs
+# Change this to your needs - changing
 script: make
